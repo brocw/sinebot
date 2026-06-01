@@ -31,7 +31,7 @@ export default {
       for (const [, message] of messages) {
         if (message.author.id !== WORDLE_BOT_ID) continue;
         const result = parseWordleResult(message);
-        if (result) pairs.push({ result, messageId: message.id });
+        if (result) pairs.push({ result, messageId: message.id, ts: message.createdTimestamp });
       }
 
       scanned += messages.size;

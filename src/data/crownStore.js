@@ -43,7 +43,7 @@ function resolveKey(store, user) {
   return store.nameAliases[nk] ?? nk;
 }
 
-function applyResult(store, { scores }, messageId) {
+function applyResult(store, { scores }, messageId, ts) {
   if (store.processedMessageIds.includes(messageId)) return false;
 
   for (const { isCrown, users } of scores) {
@@ -56,11 +56,14 @@ function applyResult(store, { scores }, messageId) {
         store.users[key] = {
           type: isResolved ? 'id' : 'name',
           crowns: 0,
+          crownHistory: [],
           ...(!isResolved && { displayName: user.raw }),
         };
       }
 
       store.users[key].crowns += 1;
+      store.users[key].crownHistory ??= [];
+      store.users[key].crownHistory.push({ messageId, ts });
 
       // Keep most-recent display name only for still-unresolved name entries.
       if (!isResolved) {
@@ -80,9 +83,9 @@ function applyResult(store, { scores }, messageId) {
  * @param {string} messageId
  * @returns {boolean} true if newly recorded
  */
-export function recordResult(parsedResult, messageId) {
+export function recordResult(parsedResult, messageId, ts) {
   const store = loadStore();
-  const changed = applyResult(store, parsedResult, messageId);
+  const changed = applyResult(store, parsedResult, messageId, ts);
   if (changed) saveStore(store);
   return changed;
 }
@@ -103,8 +106,8 @@ export function rebuildFromResults(pairs) {
     processedMessageIds: [],
   };
   let count = 0;
-  for (const { result, messageId } of pairs) {
-    if (applyResult(store, result, messageId)) count++;
+  for (const { result, messageId, ts } of pairs) {
+    if (applyResult(store, result, messageId, ts)) count++;
   }
   saveStore(store);
   return count;

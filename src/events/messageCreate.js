@@ -9,7 +9,7 @@ export default {
     if (message.author.id === WORDLE_BOT_ID) {
       if (message.channelId !== process.env.WORDLE_CHANNEL_ID) return;
       const result = parseWordleResult(message);
-      if (result) recordResult(result, message.id);
+      if (result) recordResult(result, message.id, message.createdTimestamp);
       return;
     }
 
