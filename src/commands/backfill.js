@@ -1,12 +1,11 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { WORDLE_BOT_ID, parseWordleResult } from '../utils/wordleParser.js';
 import { rebuildFromResults } from '../data/crownStore.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('backfill')
-    .setDescription('Scan channel history and rebuild the crown database from all Wordle results')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    .setDescription('Scan channel history and rebuild the crown database from all Wordle results'),
 
   async execute(interaction) {
     await interaction.deferReply();

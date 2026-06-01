@@ -1,11 +1,10 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { linkAlias } from '../data/crownStore.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('link-user')
     .setDescription('Map an unresolved Wordle name to a Discord user and merge their crowns')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(opt =>
       opt.setName('name')
         .setDescription('Name as it appears in Wordle results (e.g. "Chloe G" or "Chloe G || President")')
