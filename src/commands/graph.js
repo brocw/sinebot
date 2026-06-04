@@ -52,10 +52,11 @@ export default {
     let colorIdx = 0;
 
     for (const [key, user] of Object.entries(users)) {
-      if (!user.crownHistory?.length) continue;
+      const crownScores = (user.scores ?? []).filter(s => s.isCrown);
+      if (!crownScores.length) continue;
 
       const data = months.map(({ year, month }) =>
-        user.crownHistory.filter(({ ts }) => {
+        crownScores.filter(({ ts }) => {
           const d = new Date(ts);
           return d.getFullYear() === year && d.getMonth() === month;
         }).length

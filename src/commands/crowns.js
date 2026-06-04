@@ -10,8 +10,9 @@ export default {
     const users = getCrowns();
 
     const entries = Object.entries(users)
-      .filter(([, u]) => u.crowns > 0)
-      .sort(([, a], [, b]) => b.crowns - a.crowns);
+      .map(([key, u]) => [key, u, (u.scores ?? []).filter(s => s.isCrown).length])
+      .filter(([, , count]) => count > 0)
+      .sort(([, , a], [, , b]) => b - a);
 
     if (entries.length === 0) {
       await interaction.reply({ content: 'No crowns recorded yet.', ephemeral: true });
@@ -20,15 +21,15 @@ export default {
 
     let rank = 0;
     let prevCrowns = null;
-    const lines = entries.map(([key, u]) => {
-      if (u.crowns !== prevCrowns) {
+    const lines = entries.map(([key, u, count]) => {
+      if (count !== prevCrowns) {
         rank += 1;
-        prevCrowns = u.crowns;
+        prevCrowns = count;
       }
       const display = u.type === 'id'
         ? `<@${key}>`
         : (u.displayName?.split('||')[0].trim() ?? key.replace('name:', ''));
-      return `${rank}. ${display} — **${u.crowns}** 👑`;
+      return `${rank}. ${display} — **${count}** 👑`;
     });
 
     const embed = new EmbedBuilder()

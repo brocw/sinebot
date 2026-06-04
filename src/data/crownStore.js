@@ -46,8 +46,7 @@ function resolveKey(store, user) {
 function applyResult(store, { scores }, messageId, ts) {
   if (store.processedMessageIds.includes(messageId)) return false;
 
-  for (const { isCrown, users } of scores) {
-    if (!isCrown) continue;
+  for (const [i, { score, isCrown, users }] of scores.entries()) {
     for (const user of users) {
       const key = resolveKey(store, user);
       const isResolved = user.type === 'id' || store.nameAliases[nameKey(user.raw)];
@@ -55,15 +54,13 @@ function applyResult(store, { scores }, messageId, ts) {
       if (!store.users[key]) {
         store.users[key] = {
           type: isResolved ? 'id' : 'name',
-          crowns: 0,
-          crownHistory: [],
+          scores: [],
           ...(!isResolved && { displayName: user.raw }),
         };
       }
 
-      store.users[key].crowns += 1;
-      store.users[key].crownHistory ??= [];
-      store.users[key].crownHistory.push({ messageId, ts });
+      store.users[key].scores ??= [];
+      store.users[key].scores.push({ score, isCrown, place: i + 1, messageId, ts });
 
       // Keep most-recent display name only for still-unresolved name entries.
       if (!isResolved) {
@@ -128,14 +125,18 @@ export function linkAlias(raw, discordUserId) {
 
   store.nameAliases[nk] = discordUserId;
 
-  // Merge existing name-keyed crowns into the ID entry.
+  // Merge existing name-keyed scores into the ID entry.
   let mergedCrowns = 0;
   if (store.users[nk]) {
-    mergedCrowns = store.users[nk].crowns;
+    const nameScores = store.users[nk].scores ?? [];
+    mergedCrowns = nameScores.filter(s => s.isCrown).length;
     if (!store.users[discordUserId]) {
-      store.users[discordUserId] = { type: 'id', crowns: 0 };
+      store.users[discordUserId] = { type: 'id', scores: [] };
     }
-    store.users[discordUserId].crowns += mergedCrowns;
+    store.users[discordUserId].scores = [
+      ...(store.users[discordUserId].scores ?? []),
+      ...nameScores,
+    ];
     delete store.users[nk];
   }
 
@@ -145,7 +146,7 @@ export function linkAlias(raw, discordUserId) {
 
 /**
  * Returns the full users map keyed by user ID or name key.
- * @returns {Record<string, { type: string, crowns: number, displayName?: string }>}
+ * @returns {Record<string, { type: string, scores: { score: number|null, isCrown: boolean, messageId: string, ts: number }[], displayName?: string }>}
  */
 export function getCrowns() {
   return loadStore().users;

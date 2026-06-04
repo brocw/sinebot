@@ -5,7 +5,7 @@ import { rebuildFromResults } from '../data/crownStore.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('backfill')
-    .setDescription('Scan channel history and rebuild the crown database from all Wordle results'),
+    .setDescription('Scan channel history and rebuild the score database from all Wordle results'),
 
   async execute(interaction) {
     await interaction.deferReply();
@@ -46,7 +46,7 @@ export default {
     const recorded = rebuildFromResults(pairs);
 
     await interaction.editReply(
-      `Backfill complete. Scanned **${scanned}** messages, found **${pairs.length}** Wordle results, recorded **${recorded}** into the crown database.`
+      `Backfill complete. Scanned **${scanned}** messages, found **${pairs.length}** Wordle results, recorded **${recorded}** into the score database.`
     );
   },
 };
