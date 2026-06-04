@@ -88,9 +88,10 @@ export default {
       .setColor(0x5865F2)
       .addFields(
         { name: '👑 Crowns', value: `${crowns}  (rank #${rank} of ${total})`, inline: true },
+        { name: '📆 Days played', value: `${scores.length}`, inline: true },
         { name: '📅 Current streak', value: `${streak} day${streak === 1 ? '' : 's'}`, inline: true },
-        { name: '🎯 Avg guesses', value: `${avgGuesses}${failures ? `  (${failures} failure${failures === 1 ? '' : 's'} excluded)` : ''}`, inline: true },
-        { name: 'Place history', value: placeLines || 'None' },
+        { name: '🎯 Avg. guesses', value: `${avgGuesses}${failures ? `  (${failures} failure${failures === 1 ? '' : 's'} excluded)` : ''}`, inline: true },
+        { name: 'Medals', value: placeLines || 'None' },
       );
 
     await interaction.reply({ embeds: [embed] });

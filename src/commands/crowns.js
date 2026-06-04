@@ -19,6 +19,7 @@ export default {
       return;
     }
 
+    let totalCrowns = 0, totalSilver = 0, totalBronze = 0;
     let rank = 0;
     let prevCrowns = null;
     const lines = entries.map(([key, u, count]) => {
@@ -26,15 +27,23 @@ export default {
         rank += 1;
         prevCrowns = count;
       }
+      const scores = u.scores ?? [];
+      const second = scores.filter(s => s.place === 2).length;
+      const third  = scores.filter(s => s.place === 3).length;
+      totalCrowns += count;
+      totalSilver += second;
+      totalBronze += third;
       const display = u.type === 'id'
         ? `<@${key}>`
         : (u.displayName?.split('||')[0].trim() ?? key.replace('name:', ''));
-      return `${rank}. ${display} — **${count}** 👑`;
+      return `${rank}. ${display} — 👑 ${count}  🥈 ${second}  🥉 ${third}`;
     });
+
+    const summary = `👑 ${totalCrowns}  🥈 ${totalSilver}  🥉 ${totalBronze}`;
 
     const embed = new EmbedBuilder()
       .setTitle('👑 Crown Leaderboard')
-      .setDescription(lines.join('\n'))
+      .setDescription(`${summary}\n\n${lines.join('\n')}`)
       .setColor(0xFFD700);
 
     await interaction.reply({ embeds: [embed] });
