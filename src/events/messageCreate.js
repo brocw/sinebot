@@ -34,15 +34,17 @@ async function postDailySummary(message, result) {
   const crownEntry = result.scores.find(s => s.isCrown);
   if (!crownEntry) return;
 
-  const word = await fetchDailyWord(message.createdAt);
+  const yesterday = new Date(message.createdAt);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const word = await fetchDailyWord(yesterday);
   const commonality = word ? await assessCommonality(word) : null;
 
   const lines = [];
 
   if (word) {
     lines.push(commonality
-      ? `📖 Today's word: **${word}** — ${commonality}.`
-      : `📖 Today's word: **${word}**.`
+      ? `📖 Yesterday's word: **${word}** — ${commonality}.`
+      : `📖 Yesterday's word: **${word}**.`
     );
   }
 
