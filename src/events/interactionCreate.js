@@ -1,5 +1,5 @@
 export default {
-  name: 'interactionCreate',
+  name: "interactionCreate",
   once: false,
   async execute(interaction, client) {
     if (!interaction.isChatInputCommand()) return;
@@ -11,7 +11,7 @@ export default {
       await command.execute(interaction);
     } catch (err) {
       console.error(err);
-      const reply = { content: 'An error occurred.', ephemeral: true };
+      const reply = { content: "An error occurred.", ephemeral: true };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(reply);
       } else {

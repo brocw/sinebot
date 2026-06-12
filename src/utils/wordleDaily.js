@@ -8,7 +8,9 @@
 export async function fetchDailyWord(date) {
   const dateStr = date.toISOString().slice(0, 10);
   try {
-    const res = await fetch(`https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`);
+    const res = await fetch(
+      `https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`,
+    );
     if (!res.ok) return null;
     const data = await res.json();
     return data.solution?.toUpperCase() ?? null;
@@ -19,11 +21,11 @@ export async function fetchDailyWord(date) {
 
 // Datamuse frequency tag is occurrences per million words in COCA.
 const TIERS = [
-  [20,  'an extremely common word'],
-  [5,   'a very common word'],
-  [1,   'a fairly common word'],
-  [0.1, 'an uncommon word'],
-  [0,   'a rare or obscure word'],
+  [20, "a super real word"],
+  [5, "a real word"],
+  [1, "a barely real word"],
+  [0.1, "a not real word"],
+  [0, "a super not real word"],
 ];
 
 /**
@@ -36,12 +38,12 @@ const TIERS = [
 export async function assessCommonality(word) {
   try {
     const res = await fetch(
-      `https://api.datamuse.com/words?sp=${encodeURIComponent(word.toLowerCase())}&md=f&max=1`
+      `https://api.datamuse.com/words?sp=${encodeURIComponent(word.toLowerCase())}&md=f&max=1`,
     );
     if (!res.ok) return null;
     const [entry] = await res.json();
     if (!entry || entry.word.toLowerCase() !== word.toLowerCase()) return null;
-    const freqTag = entry.tags?.find(t => t.startsWith('f:'));
+    const freqTag = entry.tags?.find((t) => t.startsWith("f:"));
     if (!freqTag) return null;
     const freq = parseFloat(freqTag.slice(2));
     return TIERS.find(([min]) => freq >= min)[1];

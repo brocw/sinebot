@@ -1,10 +1,10 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '../../data');
-const STORE_PATH = join(DATA_DIR, 'crowns.json');
+const DATA_DIR = join(__dirname, "../../data");
+const STORE_PATH = join(DATA_DIR, "crowns.json");
 
 /**
  * Stable storage key for a name-type user.
@@ -15,7 +15,7 @@ const STORE_PATH = join(DATA_DIR, 'crowns.json');
  * @returns {string}    e.g. "name:keanu b."
  */
 export function nameKey(raw) {
-  const namePart = raw.split('||')[0].trim().replace(/\\/g, '');
+  const namePart = raw.split("||")[0].trim().replace(/\\/g, "");
   return `name:${namePart.toLowerCase()}`;
 }
 
@@ -23,7 +23,7 @@ function loadStore() {
   if (!existsSync(STORE_PATH)) {
     return { users: {}, nameAliases: {}, processedMessageIds: [] };
   }
-  const store = JSON.parse(readFileSync(STORE_PATH, 'utf8'));
+  const store = JSON.parse(readFileSync(STORE_PATH, "utf8"));
   store.nameAliases ??= {};
   return store;
 }
@@ -38,7 +38,7 @@ function saveStore(store) {
  * the alias table so they land on the correct Discord ID entry.
  */
 function resolveKey(store, user) {
-  if (user.type === 'id') return user.id;
+  if (user.type === "id") return user.id;
   const nk = nameKey(user.raw);
   return store.nameAliases[nk] ?? nk;
 }
@@ -49,18 +49,25 @@ function applyResult(store, { scores }, messageId, ts) {
   for (const [i, { score, isCrown, users }] of scores.entries()) {
     for (const user of users) {
       const key = resolveKey(store, user);
-      const isResolved = user.type === 'id' || store.nameAliases[nameKey(user.raw)];
+      const isResolved =
+        user.type === "id" || store.nameAliases[nameKey(user.raw)];
 
       if (!store.users[key]) {
         store.users[key] = {
-          type: isResolved ? 'id' : 'name',
+          type: isResolved ? "id" : "name",
           scores: [],
           ...(!isResolved && { displayName: user.raw }),
         };
       }
 
       store.users[key].scores ??= [];
-      store.users[key].scores.push({ score, isCrown, place: i + 1, messageId, ts });
+      store.users[key].scores.push({
+        score,
+        isCrown,
+        place: i + 1,
+        messageId,
+        ts,
+      });
 
       // Keep most-recent display name only for still-unresolved name entries.
       if (!isResolved) {
@@ -129,9 +136,9 @@ export function linkAlias(raw, discordUserId) {
   let mergedCrowns = 0;
   if (store.users[nk]) {
     const nameScores = store.users[nk].scores ?? [];
-    mergedCrowns = nameScores.filter(s => s.isCrown).length;
+    mergedCrowns = nameScores.filter((s) => s.isCrown).length;
     if (!store.users[discordUserId]) {
-      store.users[discordUserId] = { type: 'id', scores: [] };
+      store.users[discordUserId] = { type: "id", scores: [] };
     }
     store.users[discordUserId].scores = [
       ...(store.users[discordUserId].scores ?? []),

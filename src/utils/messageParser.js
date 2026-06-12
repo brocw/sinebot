@@ -30,7 +30,7 @@ export function parseMessage(message) {
     cleanContent: message.cleanContent,
     mentionedUserIds: [...message.mentions.users.keys()],
     mentionedRoleIds: [...message.mentions.roles.keys()],
-    attachments: message.attachments.map(a => ({
+    attachments: message.attachments.map((a) => ({
       id: a.id,
       url: a.url,
       name: a.name,

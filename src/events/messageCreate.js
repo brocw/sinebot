@@ -1,10 +1,10 @@
-import { parseMessage } from '../utils/messageParser.js';
-import { WORDLE_BOT_ID, parseWordleResult } from '../utils/wordleParser.js';
-import { recordResult } from '../data/crownStore.js';
-import { fetchDailyWord, assessCommonality } from '../utils/wordleDaily.js';
+import { parseMessage } from "../utils/messageParser.js";
+import { WORDLE_BOT_ID, parseWordleResult } from "../utils/wordleParser.js";
+import { recordResult } from "../data/crownStore.js";
+import { fetchDailyWord, assessCommonality } from "../utils/wordleDaily.js";
 
 export default {
-  name: 'messageCreate',
+  name: "messageCreate",
   once: false,
   async execute(message) {
     if (message.author.id === WORDLE_BOT_ID) {
@@ -23,15 +23,15 @@ export default {
 };
 
 function formatCrownUsers(users) {
-  const names = users.map(u =>
-    u.type === 'id' ? `<@${u.id}>` : u.raw.split('||')[0].trim()
+  const names = users.map((u) =>
+    u.type === "id" ? `<@${u.id}>` : u.raw.split("||")[0].trim(),
   );
   if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 async function postDailySummary(message, result) {
-  const crownEntry = result.scores.find(s => s.isCrown);
+  const crownEntry = result.scores.find((s) => s.isCrown);
   if (!crownEntry) return;
 
   const yesterday = new Date(message.createdAt);
@@ -42,16 +42,17 @@ async function postDailySummary(message, result) {
   const lines = [];
 
   if (word) {
-    lines.push(commonality
-      ? `📖 Yesterday's word: **${word}** — ${commonality}.`
-      : `📖 Yesterday's word: **${word}**.`
+    lines.push(
+      commonality
+        ? `📖 Yesterday's word: **${word}** — ${commonality}.`
+        : `📖 Yesterday's word: **${word}**.`,
     );
   }
 
-  const scoreStr = crownEntry.score !== null ? `${crownEntry.score}/6` : 'X/6';
+  const scoreStr = crownEntry.score !== null ? `${crownEntry.score}/6` : "X/6";
   const crownUsers = formatCrownUsers(crownEntry.users);
-  const verb = crownEntry.users.length === 1 ? 'takes' : 'share';
+  const verb = crownEntry.users.length === 1 ? "takes" : "share";
   lines.push(`👑 ${crownUsers} ${verb} the crown with **${scoreStr}**!`);
 
-  await message.channel.send(lines.join('\n'));
+  await message.channel.send(lines.join("\n"));
 }

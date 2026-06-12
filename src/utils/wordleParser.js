@@ -1,4 +1,4 @@
-export const WORDLE_BOT_ID = '1211781489931452447';
+export const WORDLE_BOT_ID = "1211781489931452447";
 
 /**
  * Returns true if the message is from the Wordle bot.
@@ -22,7 +22,7 @@ export function isWordleMessage(message) {
  * } | null} null if the message isn't a results post
  */
 export function parseWordleResult(message) {
-  const lines = message.content.split('\n').filter(l => l.trim());
+  const lines = message.content.split("\n").filter((l) => l.trim());
   if (lines.length < 2) return null;
 
   const streakMatch = lines[0].match(/on a (\d+) day streak/);
@@ -32,11 +32,11 @@ export function parseWordleResult(message) {
   const scores = [];
 
   for (const line of lines.slice(1)) {
-    const isCrown = line.startsWith('👑');
+    const isCrown = line.startsWith("👑");
     const scoreMatch = line.match(/([X\d])\/6:\s*(.*)/);
     if (!scoreMatch) continue;
 
-    const score = scoreMatch[1] === 'X' ? null : parseInt(scoreMatch[1], 10);
+    const score = scoreMatch[1] === "X" ? null : parseInt(scoreMatch[1], 10);
     const users = parseUsers(scoreMatch[2]);
     scores.push({ score, isCrown, users });
   }
@@ -58,10 +58,10 @@ function parseUsers(text) {
   let match;
   while ((match = token.exec(text)) !== null) {
     if (match[1]) {
-      users.push({ type: 'id', id: match[1] });
+      users.push({ type: "id", id: match[1] });
     } else {
       const raw = match[2].trim();
-      if (raw) users.push({ type: 'name', raw });
+      if (raw) users.push({ type: "name", raw });
     }
   }
   return users;
