@@ -86,6 +86,7 @@ export default {
       placeCounts[s.place] = (placeCounts[s.place] ?? 0) + 1;
     }
     const placeLines = Object.entries(placeCounts)
+      .filter(([place]) => Number(place) <= 3)
       .sort(([a], [b]) => Number(a) - Number(b))
       .map(([place, count]) => `${placeLabel(Number(place))}  ${count}`)
       .join("\n");
@@ -98,7 +99,7 @@ export default {
       .addFields(
         {
           name: "👑 Crowns",
-          value: `${crowns}  (rank #${rank} of ${total})`,
+          value: `${crowns} (#${rank} of ${total})`,
           inline: true,
         },
         { name: "📆 Days played", value: `${scores.length}`, inline: true },
@@ -110,6 +111,11 @@ export default {
         {
           name: "🎯 Avg. guesses",
           value: `${avgGuesses}${failures ? `  (${failures} failure${failures === 1 ? "" : "s"} excluded)` : ""}`,
+          inline: true,
+        },
+        {
+          name: "👑 Win rate",
+          value: `${((crowns / scores.length) * 100).toFixed(1)}%`,
           inline: true,
         },
         { name: "Medals", value: placeLines || "None" },

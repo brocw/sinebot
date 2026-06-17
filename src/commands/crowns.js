@@ -51,10 +51,31 @@ export default {
 
     const summary = `👑 ${totalCrowns}  🥈 ${totalSilver}  🥉 ${totalBronze}`;
 
+    const chunks = [];
+    let current = [];
+    for (const line of lines) {
+      const candidate = [...current, line].join("\n");
+      if (candidate.length > 1024) {
+        chunks.push(current);
+        current = [line];
+      } else {
+        current.push(line);
+      }
+    }
+    if (current.length > 0) chunks.push(current);
+
+    const leaderboardFields = chunks.map((chunk, i) => ({
+      name: i === 0 ? "📊 Leaderboard" : "​",
+      value: chunk.join("\n"),
+    }));
+
     const embed = new EmbedBuilder()
       .setTitle("👑 Crown Leaderboard")
-      .setDescription(`${summary}\n\n${lines.join("\n")}`)
-      .setColor(0xffd700);
+      .setColor(0xffd700)
+      .addFields(
+        { name: "👑 Total Crowns", value: summary, inline: true },
+        ...leaderboardFields
+      );
 
     await interaction.reply({ embeds: [embed] });
   },
