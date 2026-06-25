@@ -65,3 +65,15 @@ db.exec(`
     PRIMARY KEY (guild_id, game, message_id)
   );
 `);
+
+// `results` predates the Connections points columns, so add them in place when
+// missing (idempotent — guarded by the live column list).
+const resultColumns = new Set(
+  db.prepare("PRAGMA table_info(results)").all().map((c) => c.name),
+);
+if (!resultColumns.has("points")) {
+  db.exec("ALTER TABLE results ADD COLUMN points INTEGER");
+}
+if (!resultColumns.has("details")) {
+  db.exec("ALTER TABLE results ADD COLUMN details TEXT");
+}

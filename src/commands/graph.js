@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { ChartJSNodeCanvas } from "chartjs-node-canvas";
 import { getCrowns } from "../data/crownStore.js";
+import { GAMES, DEFAULT_GAME, gameOption } from "../utils/games.js";
 
 const COLORS = [
   "#FF6384",
@@ -37,13 +38,16 @@ export default {
         .setDescription("Number of months to display (default: 12)")
         .setMinValue(1)
         .setMaxValue(24),
-    ),
+    )
+    .addStringOption(gameOption),
 
   async execute(interaction) {
     await interaction.deferReply();
 
     const monthCount = interaction.options.getInteger("months") ?? 12;
-    const users = getCrowns(interaction.guildId, "wordle");
+    const game = interaction.options.getString("game") ?? DEFAULT_GAME;
+    const meta = GAMES[game];
+    const users = getCrowns(interaction.guildId, game);
 
     // Build ordered month buckets covering the window
     const now = new Date();
@@ -112,7 +116,7 @@ export default {
           legend: { position: "top" },
           title: {
             display: true,
-            text: `Crown Wins; Last ${monthCount} Month${monthCount === 1 ? "" : "s"}`,
+            text: `${meta.label} Crown Wins; Last ${monthCount} Month${monthCount === 1 ? "" : "s"}`,
             font: { size: 18 },
           },
         },

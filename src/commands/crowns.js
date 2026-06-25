@@ -1,13 +1,78 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getCrowns } from "../data/crownStore.js";
+import { getConnectionsLeaderboard } from "../data/connectionsStore.js";
+import { GAMES, DEFAULT_GAME, gameOption } from "../utils/games.js";
+
+// Splits leaderboard lines into <=1024-char chunks for embed fields.
+function chunkLines(lines) {
+  const chunks = [];
+  let current = [];
+  for (const line of lines) {
+    if ([...current, line].join("\n").length > 1024) {
+      chunks.push(current);
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+function leaderboardFields(lines, heading) {
+  return chunkLines(lines).map((chunk, i) => ({
+    name: i === 0 ? heading : "​",
+    value: chunk.join("\n"),
+  }));
+}
+
+async function connectionsLeaderboard(interaction) {
+  const board = getConnectionsLeaderboard(interaction.guildId).filter(
+    (e) => e.wins > 0 || e.games > 0,
+  );
+
+  if (board.length === 0) {
+    await interaction.reply({
+      content: "No Connections results recorded yet.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  let rank = 0;
+  let prev = null;
+  const lines = board.map((e) => {
+    if (e.totalPoints !== prev) {
+      rank += 1;
+      prev = e.totalPoints;
+    }
+    return `${rank}. <@${e.uid}>: 🏅 ${e.totalPoints}  👑 ${e.crowns}  (${e.wins}/${e.games})`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle("🏅 Connections Points Leaderboard")
+    .setColor(0xb19cd9)
+    .addFields(...leaderboardFields(lines, "📊 Leaderboard (🏅 points · 👑 crowns · wins/games)"));
+
+  await interaction.reply({ embeds: [embed] });
+}
 
 export default {
   data: new SlashCommandBuilder()
     .setName("crowns")
-    .setDescription("Show the Wordle crown leaderboard"),
+    .setDescription("Show the crown leaderboard")
+    .addStringOption(gameOption),
 
   async execute(interaction) {
-    const users = getCrowns(interaction.guildId, "wordle");
+    const game = interaction.options.getString("game") ?? DEFAULT_GAME;
+
+    if (game === "connections") {
+      await connectionsLeaderboard(interaction);
+      return;
+    }
+
+    const meta = GAMES[game];
+    const users = getCrowns(interaction.guildId, game);
 
     const entries = Object.entries(users)
       .map(([key, u]) => [
@@ -51,30 +116,12 @@ export default {
 
     const summary = `👑 ${totalCrowns}  🥈 ${totalSilver}  🥉 ${totalBronze}`;
 
-    const chunks = [];
-    let current = [];
-    for (const line of lines) {
-      const candidate = [...current, line].join("\n");
-      if (candidate.length > 1024) {
-        chunks.push(current);
-        current = [line];
-      } else {
-        current.push(line);
-      }
-    }
-    if (current.length > 0) chunks.push(current);
-
-    const leaderboardFields = chunks.map((chunk, i) => ({
-      name: i === 0 ? "📊 Leaderboard" : "​",
-      value: chunk.join("\n"),
-    }));
-
     const embed = new EmbedBuilder()
-      .setTitle("👑 Crown Leaderboard")
+      .setTitle(`👑 ${meta.label} Crown Leaderboard`)
       .setColor(0xffd700)
       .addFields(
         { name: "👑 Total Crowns", value: summary, inline: true },
-        ...leaderboardFields
+        ...leaderboardFields(lines, "📊 Leaderboard"),
       );
 
     await interaction.reply({ embeds: [embed] });

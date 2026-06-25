@@ -1,5 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getCrowns } from "../data/crownStore.js";
+import { getConnectionsStats } from "../data/connectionsStore.js";
+import { GAMES, DEFAULT_GAME, gameOption } from "../utils/games.js";
 
 function crownCount(user) {
   return (user.scores ?? []).filter((s) => s.isCrown).length;
@@ -50,21 +52,30 @@ function placeLabel(n) {
 export default {
   data: new SlashCommandBuilder()
     .setName("stats")
-    .setDescription("Show a player's Wordle statistics")
+    .setDescription("Show a player's game statistics")
     .addUserOption((opt) =>
       opt
         .setName("user")
         .setDescription("The player to look up (defaults to you)"),
-    ),
+    )
+    .addStringOption(gameOption),
 
   async execute(interaction) {
     const target = interaction.options.getUser("user") ?? interaction.user;
-    const users = getCrowns(interaction.guildId, "wordle");
+    const game = interaction.options.getString("game") ?? DEFAULT_GAME;
+    const meta = GAMES[game];
+
+    if (game === "connections") {
+      await connectionsStats(interaction, target);
+      return;
+    }
+
+    const users = getCrowns(interaction.guildId, game);
     const user = users[target.id];
 
     if (!user || !user.scores?.length) {
       await interaction.reply({
-        content: `No Wordle data found for ${target}.`,
+        content: `No ${meta.label} data found for ${target}.`,
         ephemeral: true,
       });
       return;
@@ -94,7 +105,7 @@ export default {
     const displayName = target.displayName ?? target.username;
 
     const embed = new EmbedBuilder()
-      .setTitle(`📊 Stats for ${displayName}`)
+      .setTitle(`📊 ${meta.label} stats for ${displayName}`)
       .setColor(0x5865f2)
       .addFields(
         {
@@ -109,7 +120,7 @@ export default {
           inline: true,
         },
         {
-          name: "🎯 Avg. guesses",
+          name: meta.avgLabel,
           value: `${avgGuesses}${failures ? `  (${failures} failure${failures === 1 ? "" : "s"} excluded)` : ""}`,
           inline: true,
         },
@@ -124,3 +135,53 @@ export default {
     await interaction.reply({ embeds: [embed] });
   },
 };
+
+async function connectionsStats(interaction, target) {
+  const s = getConnectionsStats(interaction.guildId, target.id);
+
+  if (!s) {
+    await interaction.reply({
+      content: `No Connections data found for ${target}.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const displayName = target.displayName ?? target.username;
+  const winRate = s.games ? ((s.wins / s.games) * 100).toFixed(1) : "0.0";
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🟨🟩🟦🟪 Connections stats for ${displayName}`)
+    .setColor(0xb19cd9)
+    .addFields(
+      { name: "🏅 Total points", value: `${s.totalPoints}`, inline: true },
+      { name: "👑 Crowns", value: `${s.crowns}`, inline: true },
+      {
+        name: "Games (Wins)",
+        value: `${s.games} (${s.wins}, ${winRate}%)`,
+        inline: true,
+      },
+      {
+        name: "📅 Current streak",
+        value: `${s.currentStreak} day${s.currentStreak === 1 ? "" : "s"}`,
+        inline: true,
+      },
+      {
+        name: "🎯 Avg. mistakes",
+        value: s.wins ? s.avgMistakes.toFixed(2) : "N/A",
+        inline: true,
+      },
+      {
+        name: "🟪 Purple First",
+        value: `${s.purpleFirsts}`,
+        inline: true,
+      },
+      {
+        name: "🌈 Reverse Rainbows",
+        value: `${s.reverseRainbows}`,
+        inline: true,
+      },
+    );
+
+  await interaction.reply({ embeds: [embed] });
+}
