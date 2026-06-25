@@ -26,7 +26,7 @@ export default {
     const raw = interaction.options.getString("name", true);
     const target = interaction.options.getUser("user", true);
 
-    const { nk, mergedCrowns } = linkAlias(raw, target.id);
+    const { nk, mergedCrowns } = linkAlias(interaction.guildId, raw, target.id);
 
     const mergeNote =
       mergedCrowns > 0

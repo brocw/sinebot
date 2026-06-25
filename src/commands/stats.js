@@ -59,7 +59,7 @@ export default {
 
   async execute(interaction) {
     const target = interaction.options.getUser("user") ?? interaction.user;
-    const users = getCrowns();
+    const users = getCrowns(interaction.guildId, "wordle");
     const user = users[target.id];
 
     if (!user || !user.scores?.length) {

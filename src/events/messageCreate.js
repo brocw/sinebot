@@ -11,7 +11,7 @@ export default {
       if (message.channelId !== process.env.WORDLE_CHANNEL_ID) return;
       const result = parseWordleResult(message);
       if (!result) return;
-      recordResult(result, message.id, message.createdTimestamp);
+      recordResult(message.guildId, "wordle", result, message.id, message.createdTimestamp);
       await postDailySummary(message, result);
       return;
     }

@@ -43,7 +43,7 @@ export default {
     await interaction.deferReply();
 
     const monthCount = interaction.options.getInteger("months") ?? 12;
-    const users = getCrowns();
+    const users = getCrowns(interaction.guildId, "wordle");
 
     // Build ordered month buckets covering the window
     const now = new Date();

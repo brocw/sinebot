@@ -51,7 +51,7 @@ export default {
     // Messages were fetched newest-first; reverse so we process oldest-first.
     pairs.reverse();
 
-    const recorded = rebuildFromResults(pairs);
+    const recorded = rebuildFromResults(interaction.guildId, "wordle", pairs);
 
     await interaction.editReply(
       `Backfill complete. Scanned **${scanned}** messages, found **${pairs.length}** Wordle results, recorded **${recorded}** into the score database.`,

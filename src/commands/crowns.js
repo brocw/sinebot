@@ -7,7 +7,7 @@ export default {
     .setDescription("Show the Wordle crown leaderboard"),
 
   async execute(interaction) {
-    const users = getCrowns();
+    const users = getCrowns(interaction.guildId, "wordle");
 
     const entries = Object.entries(users)
       .map(([key, u]) => [
