@@ -2,10 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getCrowns } from "../data/crownStore.js";
 import { getConnectionsStats } from "../data/connectionsStore.js";
 import { GAMES, DEFAULT_GAME, gameOption } from "../utils/games.js";
-
-function crownCount(user) {
-  return (user.scores ?? []).filter((s) => s.isCrown).length;
-}
+import { crownCount } from "../utils/leaderboard.js";
 
 function currentStreak(scores) {
   if (!scores.length) return 0;
@@ -105,7 +102,7 @@ export default {
     const displayName = target.displayName ?? target.username;
 
     const embed = new EmbedBuilder()
-      .setTitle(`📊 ${meta.label} stats for ${displayName}`)
+      .setTitle(`🟩🟨⬛ ${meta.label} stats for ${displayName}`)
       .setColor(0x5865f2)
       .addFields(
         {
@@ -149,18 +146,21 @@ async function connectionsStats(interaction, target) {
 
   const displayName = target.displayName ?? target.username;
   const winRate = s.games ? ((s.wins / s.games) * 100).toFixed(1) : "0.0";
+  const specialLines = [
+    `🟪  ${s.purpleFirsts}  Purple First`,
+    `🌈  ${s.reverseRainbows}  Reverse Rainbow`,
+  ].join("\n");
 
   const embed = new EmbedBuilder()
     .setTitle(`🟨🟩🟦🟪 Connections stats for ${displayName}`)
     .setColor(0xb19cd9)
     .addFields(
-      { name: "🏅 Total points", value: `${s.totalPoints}`, inline: true },
-      { name: "👑 Crowns", value: `${s.crowns}`, inline: true },
       {
-        name: "Games (Wins)",
-        value: `${s.games} (${s.wins}, ${winRate}%)`,
+        name: "🏅👑 Points & Crowns",
+        value: `🏅 ${s.totalPoints}  👑 ${s.crowns}`,
         inline: true,
       },
+      { name: "📆 Days played", value: `${s.games}`, inline: true },
       {
         name: "📅 Current streak",
         value: `${s.currentStreak} day${s.currentStreak === 1 ? "" : "s"}`,
@@ -171,16 +171,8 @@ async function connectionsStats(interaction, target) {
         value: s.wins ? s.avgMistakes.toFixed(2) : "N/A",
         inline: true,
       },
-      {
-        name: "🟪 Purple First",
-        value: `${s.purpleFirsts}`,
-        inline: true,
-      },
-      {
-        name: "🌈 Reverse Rainbows",
-        value: `${s.reverseRainbows}`,
-        inline: true,
-      },
+      { name: "👑 Win rate", value: `${winRate}%`, inline: true },
+      { name: "Special", value: specialLines },
     );
 
   await interaction.reply({ embeds: [embed] });

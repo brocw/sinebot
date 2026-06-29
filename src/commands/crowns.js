@@ -2,29 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getCrowns } from "../data/crownStore.js";
 import { getConnectionsLeaderboard } from "../data/connectionsStore.js";
 import { GAMES, DEFAULT_GAME, gameOption } from "../utils/games.js";
-
-// Splits leaderboard lines into <=1024-char chunks for embed fields.
-function chunkLines(lines) {
-  const chunks = [];
-  let current = [];
-  for (const line of lines) {
-    if ([...current, line].join("\n").length > 1024) {
-      chunks.push(current);
-      current = [line];
-    } else {
-      current.push(line);
-    }
-  }
-  if (current.length > 0) chunks.push(current);
-  return chunks;
-}
-
-function leaderboardFields(lines, heading) {
-  return chunkLines(lines).map((chunk, i) => ({
-    name: i === 0 ? heading : "​",
-    value: chunk.join("\n"),
-  }));
-}
+import { crownCount, leaderboardFields } from "../utils/leaderboard.js";
 
 async function connectionsLeaderboard(interaction) {
   const board = getConnectionsLeaderboard(interaction.guildId).filter(
@@ -39,6 +17,7 @@ async function connectionsLeaderboard(interaction) {
     return;
   }
 
+  let totalPoints = 0, totalCrowns = 0;
   let rank = 0;
   let prev = null;
   const lines = board.map((e) => {
@@ -46,13 +25,20 @@ async function connectionsLeaderboard(interaction) {
       rank += 1;
       prev = e.totalPoints;
     }
-    return `${rank}. <@${e.uid}>: 🏅 ${e.totalPoints}  👑 ${e.crowns}  (${e.wins}/${e.games})`;
+    totalPoints += e.totalPoints;
+    totalCrowns += e.crowns;
+    return `${rank}. <@${e.uid}>: 🏅 ${e.totalPoints}  👑 ${e.crowns}`;
   });
 
+  const summary = `🏅 ${totalPoints}  👑 ${totalCrowns}`;
+
   const embed = new EmbedBuilder()
-    .setTitle("🏅 Connections Points Leaderboard")
+    .setTitle("🟨🟩🟦🟪 Connections Points Leaderboard")
     .setColor(0xb19cd9)
-    .addFields(...leaderboardFields(lines, "📊 Leaderboard (🏅 points · 👑 crowns · wins/games)"));
+    .addFields(
+      { name: "🏅👑 Total Points & Crowns", value: summary, inline: true },
+      ...leaderboardFields(lines, "📊 Leaderboard"),
+    );
 
   await interaction.reply({ embeds: [embed] });
 }
@@ -78,7 +64,7 @@ export default {
       .map(([key, u]) => [
         key,
         u,
-        (u.scores ?? []).filter((s) => s.isCrown).length,
+        crownCount(u),
       ])
       .filter(([, , count]) => count > 0)
       .sort(([, , a], [, , b]) => b - a);
@@ -117,7 +103,7 @@ export default {
     const summary = `👑 ${totalCrowns}  🥈 ${totalSilver}  🥉 ${totalBronze}`;
 
     const embed = new EmbedBuilder()
-      .setTitle(`👑 ${meta.label} Crown Leaderboard`)
+      .setTitle(`🟩🟨⬛ ${meta.label} Crown Leaderboard`)
       .setColor(0xffd700)
       .addFields(
         { name: "👑 Total Crowns", value: summary, inline: true },
