@@ -64,6 +64,13 @@ db.exec(`
     message_id TEXT NOT NULL,
     PRIMARY KEY (guild_id, game, message_id)
   );
+
+  CREATE TABLE IF NOT EXISTS user_settings (
+    guild_id        TEXT NOT NULL,
+    discord_user_id TEXT NOT NULL,
+    connections_dm  INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (guild_id, discord_user_id)
+  );
 `);
 
 // `results` predates the Connections points columns, so add them in place when

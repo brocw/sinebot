@@ -3,6 +3,7 @@ import { WORDLE_BOT_ID, parseWordleResult } from "../utils/wordleParser.js";
 import { parseConnectionsResult } from "../utils/connectionsParser.js";
 import { recordResult } from "../data/crownStore.js";
 import { recordConnectionsResult } from "../data/connectionsStore.js";
+import { getConnectionsDm } from "../data/userSettingsStore.js";
 import { connectionsSummaryLines } from "../connectionsSummary.js";
 import { fetchDailyWord, assessCommonality } from "../utils/wordleDaily.js";
 
@@ -25,13 +26,20 @@ export default {
     if (message.channelId === process.env.WORDLE_CHANNEL_ID) {
       const connections = parseConnectionsResult(message);
       if (connections) {
-        recordConnectionsResult(
+        const score = recordConnectionsResult(
           message.guildId,
           connections,
           message.author.id,
           message.id,
           message.createdTimestamp,
         );
+        if (score && getConnectionsDm(message.guildId, message.author.id)) {
+          try {
+            await message.author.send(formatConnectionsReply(connections, score));
+          } catch (err) {
+            console.warn(`[connections] Failed to DM ${message.author.id}: ${err.message}`);
+          }
+        }
         return;
       }
     }
@@ -39,6 +47,40 @@ export default {
     parseMessage(message);
   },
 };
+
+const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "🟪" };
+
+function formatConnectionsReply(parsed, score) {
+  const header = parsed.solved
+    ? `✅ Solved Puzzle #${parsed.puzzle}`
+    : `❌ Failed Puzzle #${parsed.puzzle}`;
+
+  const lines = [header];
+
+  if (parsed.solved) {
+    const streakPart = score.streak > 1 ? ` + ${score.streak} streak` : "";
+    lines.push(`**Points:** ${score.base} base${streakPart} = **${score.total}**`);
+  } else {
+    lines.push("**Points:** 0 (no points for a loss)");
+  }
+
+  const orderEmoji = parsed.solveOrder.map((c) => COLOUR_EMOJI[c]).join(" → ");
+  lines.push(`**Solve order:** ${orderEmoji || "—"}`);
+
+  if (parsed.mistakes > 0) {
+    const slipNote = parsed.slipMistakes > 0 ? ` (${parsed.slipMistakes} slip 🫣)` : "";
+    lines.push(`**Mistakes:** ${parsed.mistakes}${slipNote}`);
+  } else {
+    lines.push("**Mistakes:** none 🎯");
+  }
+
+  const specials = [];
+  if (parsed.purpleFirst) specials.push("Purple First 🟪 (+15)");
+  if (parsed.reverseRainbow) specials.push("Reverse Rainbow 🌈 (+30)");
+  if (specials.length) lines.push(`**Specials:** ${specials.join(", ")}`);
+
+  return `||${lines.join("\n")}||`;
+}
 
 function formatCrownUsers(users) {
   const names = users.map((u) =>

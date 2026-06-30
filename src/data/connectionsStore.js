@@ -159,7 +159,8 @@ function recomputePuzzle(guildId, puzzleId) {
  * standings. Ignores duplicate message IDs and re-shares of a puzzle the player
  * already logged.
  *
- * @returns {boolean} true if newly recorded
+ * @returns {{ base: number, streak: number, total: number } | null} scoring
+ *   details if newly recorded, null otherwise
  */
 export function recordConnectionsResult(
   guildId,
@@ -169,7 +170,7 @@ export function recordConnectionsResult(
   ts,
 ) {
   return tx(() => {
-    if (isProcessed.get(guildId, GAME, messageId)) return false;
+    if (isProcessed.get(guildId, GAME, messageId)) return null;
 
     const puzzleId = String(parsed.puzzle);
     const playerId = getOrCreateIdPlayer(guildId, discordUserId);
@@ -177,23 +178,28 @@ export function recordConnectionsResult(
     // A player only counts once per puzzle (guard against re-shares).
     if (selectPlayerPuzzle.get(guildId, GAME, puzzleId, playerId)) {
       markProcessed.run(guildId, GAME, messageId);
-      return false;
+      return null;
     }
 
+    const base = basePoints(parsed);
     insertResult.run(
       guildId,
       GAME,
       playerId,
       puzzleId,
       scoreFor(parsed),
-      basePoints(parsed),
+      base,
       detailsFor(parsed),
       messageId,
       ts,
     );
     markProcessed.run(guildId, GAME, messageId);
     recomputePuzzle(guildId, puzzleId);
-    return true;
+
+    const streak = parsed.solved
+      ? streakAsOf(solvedSetFor(guildId, playerId), parsed.puzzle)
+      : 0;
+    return { base, streak, total: dailyScore(base, streak) };
   });
 }
 
