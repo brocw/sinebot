@@ -15,7 +15,13 @@ export default {
       if (message.channelId !== process.env.WORDLE_CHANNEL_ID) return;
       const result = parseWordleResult(message);
       if (!result) return;
-      recordResult(message.guildId, "wordle", result, message.id, message.createdTimestamp);
+      recordResult(
+        message.guildId,
+        "wordle",
+        result,
+        message.id,
+        message.createdTimestamp,
+      );
       await postDailySummary(message, result);
       return;
     }
@@ -35,9 +41,13 @@ export default {
         );
         if (score && getConnectionsDm(message.guildId, message.author.id)) {
           try {
-            await message.author.send(formatConnectionsReply(connections, score));
+            await message.author.send(
+              formatConnectionsReply(connections, score),
+            );
           } catch (err) {
-            console.warn(`[connections] Failed to DM ${message.author.id}: ${err.message}`);
+            console.warn(
+              `[connections] Failed to DM ${message.author.id}: ${err.message}`,
+            );
           }
         }
         return;
@@ -59,7 +69,9 @@ function formatConnectionsReply(parsed, score) {
 
   if (parsed.solved) {
     const streakPart = score.streak > 1 ? ` + ${score.streak} streak` : "";
-    lines.push(`**Points:** ${score.base} base${streakPart} = **${score.total}**`);
+    lines.push(
+      `**Points:** ${score.base} base${streakPart} = **${score.total}**`,
+    );
   } else {
     lines.push("**Points:** 0 (no points for a loss)");
   }
@@ -68,7 +80,8 @@ function formatConnectionsReply(parsed, score) {
   lines.push(`**Solve order:** ${orderEmoji || "—"}`);
 
   if (parsed.mistakes > 0) {
-    const slipNote = parsed.slipMistakes > 0 ? ` (${parsed.slipMistakes} slip 🫣)` : "";
+    const slipNote =
+      parsed.slipMistakes > 0 ? ` (${parsed.slipMistakes} slip 🫣)` : "";
     lines.push(`**Mistakes:** ${parsed.mistakes}${slipNote}`);
   } else {
     lines.push("**Mistakes:** none 🎯");
@@ -79,7 +92,7 @@ function formatConnectionsReply(parsed, score) {
   if (parsed.reverseRainbow) specials.push("Reverse Rainbow 🌈 (+30)");
   if (specials.length) lines.push(`**Specials:** ${specials.join(", ")}`);
 
-  return `||${lines.join("\n")}||`;
+  return `${lines.join("\n")}`;
 }
 
 function formatCrownUsers(users) {
@@ -111,10 +124,13 @@ async function postDailySummary(message, result) {
       );
     }
 
-    const scoreStr = crownEntry.score !== null ? `${crownEntry.score}/6` : "X/6";
+    const scoreStr =
+      crownEntry.score !== null ? `${crownEntry.score}/6` : "X/6";
     const crownUsers = formatCrownUsers(crownEntry.users);
     const verb = crownEntry.users.length === 1 ? "takes" : "share";
-    lines.push(`👑 ${crownUsers} ${verb} the Wordle crown with **${scoreStr}**!`);
+    lines.push(
+      `👑 ${crownUsers} ${verb} the Wordle crown with **${scoreStr}**!`,
+    );
   }
 
   lines.push(...connectionsSummaryLines(message.guildId, message.createdAt));
