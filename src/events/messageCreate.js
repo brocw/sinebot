@@ -63,7 +63,7 @@ const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "�
 function formatConnectionsReply(parsed, score) {
   const header = parsed.solved
     ? `✅ Solved Puzzle #${parsed.puzzle}`
-    : `❌ Failed Puzzle #${parsed.puzzle}`;
+    : `😂🫵 You choked on Puzzle #${parsed.puzzle}! Embarrassing.`;
 
   const lines = [header];
 
