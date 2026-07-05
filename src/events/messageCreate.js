@@ -3,7 +3,10 @@ import { WORDLE_BOT_ID, parseWordleResult } from "../utils/wordleParser.js";
 import { parseConnectionsResult } from "../utils/connectionsParser.js";
 import { recordResult } from "../data/crownStore.js";
 import { recordConnectionsResult } from "../data/connectionsStore.js";
-import { getConnectionsDm } from "../data/userSettingsStore.js";
+import {
+  getConnectionsDm,
+  setConnectionsDm,
+} from "../data/userSettingsStore.js";
 import { connectionsSummaryLines } from "../connectionsSummary.js";
 import { fetchDailyWord, assessCommonality } from "../utils/wordleDaily.js";
 
@@ -27,6 +30,11 @@ export default {
     }
 
     if (message.author.bot) return;
+
+    if (message.guildId === null) {
+      await handleDmReply(message);
+      return;
+    }
 
     // Connections results are self-posted by players in the same tracked channel.
     if (message.channelId === process.env.WORDLE_CHANNEL_ID) {
@@ -57,6 +65,25 @@ export default {
     parseMessage(message);
   },
 };
+
+// Lets a player cancel/resume Connections DMs by replying directly in the DM,
+// mirroring what /settings connections-dm on|off does. A DM has no guildId,
+// so this uses the bot's single configured guild (see GUILD_ID in .env).
+async function handleDmReply(message) {
+  const content = message.content.trim().toLowerCase();
+
+  if (content === "stop") {
+    setConnectionsDm(process.env.GUILD_ID, message.author.id, false);
+    await message.channel.send(
+      "DMs stopped. Reply with 'resume' to resume DMs.",
+    );
+  } else if (content === "resume") {
+    setConnectionsDm(process.env.GUILD_ID, message.author.id, true);
+    await message.channel.send(
+      "DMs resumed. Reply with 'stop' to cancel DMs again.",
+    );
+  }
+}
 
 const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "🟪" };
 
@@ -92,7 +119,9 @@ function formatConnectionsReply(parsed, score) {
   if (parsed.reverseRainbow) specials.push("Reverse Rainbow 🌈 (+30)");
   if (specials.length) lines.push(`**Specials:** ${specials.join(", ")}`);
 
-  return `${lines.join("\n")}`;
+  lines.push("", "-# To cancel DMs, please reply '*stop*'.");
+
+  return lines.join("\n");
 }
 
 function formatCrownUsers(users) {
