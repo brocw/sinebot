@@ -1,5 +1,6 @@
-import { SlashCommandBuilder } from "discord.js";
-import { linkAlias } from "../data/crownStore.js";
+import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { linkAlias } from "../data/aggregateStore.js";
+import { requireAdmin } from "../utils/permissions.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -23,6 +24,8 @@ export default {
     ),
 
   async execute(interaction) {
+    if (!(await requireAdmin(interaction))) return;
+
     const raw = interaction.options.getString("name", true);
     const target = interaction.options.getUser("user", true);
 
@@ -35,7 +38,7 @@ export default {
 
     await interaction.reply({
       content: `Linked \`${nk}\` → <@${target.id}>. ${mergeNote}\nFuture results for this name will be attributed to <@${target.id}> automatically. Run \`/backfill\` to reprocess history with the new mapping.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   },
 };

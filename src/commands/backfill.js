@@ -1,13 +1,18 @@
-import { SlashCommandBuilder } from "discord.js";
-import { WORDLE_BOT_ID, parseWordleResult } from "../utils/wordleParser.js";
-import { parseConnectionsResult } from "../utils/connectionsParser.js";
-import { rebuildFromResults } from "../data/crownStore.js";
-import { rebuildConnections } from "../data/connectionsStore.js";
-import { GAMES, DEFAULT_GAME, gameOption } from "../utils/games.js";
+import {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
+  MessageFlags,
+} from "discord.js";
+import { gameOption, gameFrom } from "../games/registry.js";
+import { trackedChannel } from "../data/guildConfigStore.js";
+import { requireAdmin } from "../utils/permissions.js";
 
 /**
- * Pages through the tracked channel's full history, oldest-first, collecting
- * whatever `collect` returns for each message (null is skipped).
+ * Pages through a channel's full history, oldest-first, collecting whatever
+ * `collect` returns for each message (null is skipped).
  */
 async function scanChannel(channel, collect) {
   const collected = [];
@@ -45,53 +50,84 @@ export default {
     .addStringOption(gameOption),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    if (!(await requireAdmin(interaction))) return;
 
-    const game = interaction.options.getString("game") ?? DEFAULT_GAME;
-    const meta = GAMES[game];
+    const game = gameFrom(interaction);
+    const channelId = trackedChannel(interaction.guildId, game.id);
 
-    const channelId = process.env.WORDLE_CHANNEL_ID;
+    if (!channelId) {
+      await interaction.reply({
+        content: `${game.label} has no tracked channel here. Set one with \`/config channel game:${game.label}\`.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // A backfill deletes every recorded result for this game before rebuilding,
+    // so make the destructive part explicit rather than implicit.
+    const confirmRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("backfill-confirm")
+        .setLabel("Wipe and rebuild")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("backfill-cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Secondary),
+    );
+
+    const prompt = await interaction.reply({
+      content: `This deletes all recorded **${game.label}** results for this server and rebuilds them from <#${channelId}>. Continue?`,
+      components: [confirmRow],
+      flags: MessageFlags.Ephemeral,
+      withResponse: true,
+    });
+
+    let choice;
+    try {
+      choice = await prompt.resource.message.awaitMessageComponent({
+        componentType: ComponentType.Button,
+        filter: (i) => i.user.id === interaction.user.id,
+        time: 30_000,
+      });
+    } catch {
+      await interaction.editReply({
+        content: "Backfill timed out — nothing was changed.",
+        components: [],
+      });
+      return;
+    }
+
+    if (choice.customId === "backfill-cancel") {
+      await choice.update({ content: "Backfill cancelled.", components: [] });
+      return;
+    }
+
+    await choice.update({
+      content: `Scanning <#${channelId}> for ${game.label} results…`,
+      components: [],
+    });
+
     const channel =
       interaction.client.channels.cache.get(channelId) ??
       (await interaction.client.channels.fetch(channelId));
 
-    let scanned;
-    let found;
-    let recorded;
+    const { collected, scanned } = await scanChannel(channel, (message) => {
+      if (!game.wantsMessage(message)) return null;
+      const parsed = game.parse(message);
+      if (!parsed) return null;
+      return {
+        parsed,
+        userId: message.author.id,
+        messageId: message.id,
+        ts: message.createdTimestamp,
+      };
+    });
 
-    if (game === "connections") {
-      const { collected, scanned: n } = await scanChannel(channel, (message) => {
-        if (message.author.bot) return null;
-        const parsed = parseConnectionsResult(message);
-        if (!parsed) return null;
-        return {
-          parsed,
-          userId: message.author.id,
-          messageId: message.id,
-          ts: message.createdTimestamp,
-        };
-      });
-      scanned = n;
-      found = collected.length;
-      recorded = rebuildConnections(interaction.guildId, collected);
-    } else {
-      const { collected, scanned: n } = await scanChannel(channel, (message) => {
-        if (message.author.id !== WORDLE_BOT_ID) return null;
-        const result = parseWordleResult(message);
-        if (!result) return null;
-        return {
-          result,
-          messageId: message.id,
-          ts: message.createdTimestamp,
-        };
-      });
-      scanned = n;
-      found = collected.length;
-      recorded = rebuildFromResults(interaction.guildId, "wordle", collected);
-    }
+    const recorded = game.store.rebuild(interaction.guildId, collected);
 
     await interaction.editReply(
-      `Backfill complete. Scanned **${scanned}** messages, found **${found}** ${meta.label} results, recorded **${recorded}** into the score database.`,
+      `Backfill complete. Scanned **${scanned}** messages, found **${collected.length}** ${game.label} results, recorded **${recorded}** into the score database.`,
     );
   },
 };

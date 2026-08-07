@@ -1,3 +1,5 @@
+import { MessageFlags } from "discord.js";
+
 export default {
   name: "interactionCreate",
   once: false,
@@ -10,12 +12,21 @@ export default {
     try {
       await command.execute(interaction);
     } catch (err) {
-      console.error(err);
-      const reply = { content: "An error occurred.", ephemeral: true };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
-      } else {
-        await interaction.reply(reply);
+      console.error(`[command:${interaction.commandName}]`, err);
+
+      const reply = {
+        content: "An error occurred.",
+        flags: MessageFlags.Ephemeral,
+      };
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(reply);
+        } else {
+          await interaction.reply(reply);
+        }
+      } catch {
+        // The interaction token expired or was already resolved elsewhere;
+        // the original error above is the one worth keeping.
       }
     }
   },

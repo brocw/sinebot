@@ -11,7 +11,19 @@ export async function loadEvents(client) {
   for (const file of files) {
     const event = await import(pathToFileURL(join(eventsPath, file)).href);
     const { name, once, execute } = event.default;
-    client[once ? "once" : "on"](name, (...args) => execute(...args, client));
+
+    // Handlers are wrapped so that one malformed message or a transient API
+    // error cannot reject unhandled and take the whole process down — which,
+    // serving many guilds, would be an outage for all of them.
+    const safeExecute = async (...args) => {
+      try {
+        await execute(...args, client);
+      } catch (err) {
+        console.error(`[event:${name}] handler failed:`, err);
+      }
+    };
+
+    client[once ? "once" : "on"](name, safeExecute);
   }
 }
 
