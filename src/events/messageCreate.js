@@ -1,169 +1,94 @@
-import { parseMessage } from "../utils/messageParser.js";
-import { WORDLE_BOT_ID, parseWordleResult } from "../utils/wordleParser.js";
-import { parseConnectionsResult } from "../utils/connectionsParser.js";
-import { recordResult } from "../data/crownStore.js";
-import { recordConnectionsResult } from "../data/connectionsStore.js";
-import {
-  getConnectionsDm,
-  setConnectionsDm,
-} from "../data/userSettingsStore.js";
-import { connectionsSummaryLines } from "../connectionsSummary.js";
-import { fetchDailyWord, assessCommonality } from "../utils/wordleDaily.js";
+import { GAMES } from "../games/registry.js";
+import { selfReportSummaryLines } from "../games/puzzleNumber.js";
+import { trackedChannel } from "../data/guildConfigStore.js";
+import { dmEnabled, setDmEnabledAll } from "../data/userPrefsStore.js";
 
 export default {
   name: "messageCreate",
   once: false,
   async execute(message) {
-    if (message.author.id === WORDLE_BOT_ID) {
-      if (message.channelId !== process.env.WORDLE_CHANNEL_ID) return;
-      const result = parseWordleResult(message);
-      if (!result) return;
-      recordResult(
-        message.guildId,
-        "wordle",
-        result,
-        message.id,
-        message.createdTimestamp,
-      );
-      await postDailySummary(message, result);
-      return;
-    }
-
-    if (message.author.bot) return;
-
+    // A DM has no guild, so it can only be a preference reply.
     if (message.guildId === null) {
-      await handleDmReply(message);
+      if (!message.author.bot) await handleDmReply(message);
       return;
     }
 
-    // Connections results are self-posted by players in the same tracked channel.
-    if (message.channelId === process.env.WORDLE_CHANNEL_ID) {
-      const connections = parseConnectionsResult(message);
-      if (connections) {
-        const score = recordConnectionsResult(
-          message.guildId,
-          connections,
-          message.author.id,
-          message.id,
-          message.createdTimestamp,
-        );
-        if (score && getConnectionsDm(message.guildId, message.author.id)) {
-          try {
-            await message.author.send(
-              formatConnectionsReply(connections, score),
-            );
-          } catch (err) {
-            console.warn(
-              `[connections] Failed to DM ${message.author.id}: ${err.message}`,
-            );
-          }
-        }
-        return;
-      }
-    }
+    for (const game of GAMES) {
+      if (!game.wantsMessage(message)) continue;
+      if (message.channelId !== trackedChannel(message.guildId, game.id)) continue;
 
-    parseMessage(message);
+      const parsed = game.parse(message);
+      if (!parsed) continue;
+
+      if (game.kind === "aggregate") {
+        await handleAggregate(message, game, parsed);
+      } else {
+        await handleSelfReport(message, game, parsed);
+      }
+      return; // one message belongs to at most one game
+    }
   },
 };
 
-// Lets a player cancel/resume Connections DMs by replying directly in the DM,
-// mirroring what /settings connections-dm on|off does. A DM has no guildId,
-// so this uses the bot's single configured guild (see GUILD_ID in .env).
-async function handleDmReply(message) {
-  const content = message.content.trim().toLowerCase();
-
-  if (content === "stop") {
-    setConnectionsDm(process.env.GUILD_ID, message.author.id, false);
-    await message.channel.send(
-      "DMs stopped. Reply with 'resume' to resume DMs.",
-    );
-  } else if (content === "resume") {
-    setConnectionsDm(process.env.GUILD_ID, message.author.id, true);
-    await message.channel.send(
-      "DMs resumed. Reply with 'stop' to cancel DMs again.",
-    );
-  }
+async function handleAggregate(message, game, parsed) {
+  game.store.record(message.guildId, parsed, message.id, message.createdTimestamp);
+  await postDailySummary(message, game, parsed);
 }
 
-const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "🟪" };
-
-function formatConnectionsReply(parsed, score) {
-  const header = parsed.solved
-    ? `✅ Solved Puzzle #${parsed.puzzle}`
-    : `😂🫵 You choked on Puzzle #${parsed.puzzle}! Embarrassing.`;
-
-  const lines = [header];
-
-  if (parsed.solved) {
-    const streakPart = score.streak > 1 ? ` + ${score.streak} streak` : "";
-    lines.push(
-      `**Points:** ${score.base} base${streakPart} = **${score.total}**`,
-    );
-  } else {
-    lines.push("**Points:** 0 (no points for a loss)");
-  }
-
-  const orderEmoji = parsed.solveOrder.map((c) => COLOUR_EMOJI[c]).join(" → ");
-  lines.push(`**Solve order:** ${orderEmoji || "—"}`);
-
-  if (parsed.mistakes > 0) {
-    const slipNote =
-      parsed.slipMistakes > 0 ? ` (${parsed.slipMistakes} slip 🫣)` : "";
-    lines.push(`**Mistakes:** ${parsed.mistakes}${slipNote}`);
-  } else {
-    lines.push("**Mistakes:** none 🎯");
-  }
-
-  const specials = [];
-  if (parsed.purpleFirst) specials.push("Purple First 🟪 (+15)");
-  if (parsed.reverseRainbow) specials.push("Reverse Rainbow 🌈 (+30)");
-  if (specials.length) lines.push(`**Specials:** ${specials.join(", ")}`);
-
-  lines.push("", "-# To cancel DMs, please reply '*stop*'.");
-
-  return lines.join("\n");
-}
-
-function formatCrownUsers(users) {
-  const names = users.map((u) =>
-    u.type === "id" ? `<@${u.id}>` : u.raw.split("||")[0].trim(),
+async function handleSelfReport(message, game, parsed) {
+  const score = game.store.record(
+    message.guildId,
+    parsed,
+    message.author.id,
+    message.id,
+    message.createdTimestamp,
   );
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+
+  // null means a duplicate or a re-share of a puzzle already logged.
+  if (!score || !game.formatDm) return;
+  if (!dmEnabled(message.author.id, game.id)) return;
+
+  try {
+    await message.author.send(game.formatDm(parsed, score));
+  } catch (err) {
+    // Closed DMs are routine, not an error worth failing the handler over.
+    console.warn(`[${game.id}] Failed to DM ${message.author.id}: ${err.message}`);
+  }
 }
 
-// Posts a single combined daily summary when the Wordle bot drops its results:
-// the Wordle word + crown, followed by yesterday's Connections crown (pulled
-// from the database). Either section is omitted if it has no crown to report.
-async function postDailySummary(message, result) {
-  const lines = [];
+/**
+ * Posts one combined summary when an aggregate game fires: that game's own
+ * announcement, followed by yesterday's crown for every self-report game the
+ * guild tracks. Sections with nothing to report drop out.
+ */
+async function postDailySummary(message, announcingGame, parsed) {
+  const lines = await announcingGame.announce({
+    guildId: message.guildId,
+    message,
+    parsed,
+  });
 
-  const crownEntry = result.scores.find((s) => s.isCrown);
-  if (crownEntry) {
-    const yesterday = new Date(message.createdAt);
-    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    const word = await fetchDailyWord(yesterday);
-    const commonality = word ? await assessCommonality(word) : null;
-
-    if (word) {
-      lines.push(
-        commonality
-          ? `📖 Yesterday's word: **${word}**, ${commonality}.`
-          : `📖 Yesterday's word: **${word}**.`,
-      );
-    }
-
-    const scoreStr =
-      crownEntry.score !== null ? `${crownEntry.score}/6` : "X/6";
-    const crownUsers = formatCrownUsers(crownEntry.users);
-    const verb = crownEntry.users.length === 1 ? "takes" : "share";
-    lines.push(
-      `👑 ${crownUsers} ${verb} the Wordle crown with **${scoreStr}**!`,
-    );
+  for (const game of GAMES) {
+    if (game.kind !== "self-report") continue;
+    if (!trackedChannel(message.guildId, game.id)) continue;
+    lines.push(...selfReportSummaryLines(game, message.guildId, message.createdAt));
   }
-
-  lines.push(...connectionsSummaryLines(message.guildId, message.createdAt));
 
   if (lines.length === 0) return;
   await message.channel.send(lines.join("\n"));
+}
+
+// Lets a player mute or unmute result DMs by replying in the DM itself,
+// mirroring `/settings dm`. Preferences are global, so this needs no guild.
+async function handleDmReply(message) {
+  const content = message.content.trim().toLowerCase();
+  const ids = GAMES.map((g) => g.id);
+
+  if (content === "stop") {
+    setDmEnabledAll(message.author.id, ids, false);
+    await message.channel.send("DMs stopped. Reply with 'resume' to resume DMs.");
+  } else if (content === "resume") {
+    setDmEnabledAll(message.author.id, ids, true);
+    await message.channel.send("DMs resumed. Reply with 'stop' to cancel DMs again.");
+  }
 }
