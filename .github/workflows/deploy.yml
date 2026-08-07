@@ -5,7 +5,18 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      - run: npm ci
+      - run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to DigitalOcean
@@ -17,6 +28,16 @@ jobs:
           script: |
             set -e
             cd ${{ secrets.DO_DEPLOY_PATH }}
+
+            # Snapshot the database before pulling. Schema migrations run on
+            # boot, so this is the rollback point if one goes wrong.
+            mkdir -p data/backups
+            if [ -f data/sinebot.db ]; then
+              sqlite3 data/sinebot.db ".backup 'data/backups/sinebot-$(date +%Y%m%d-%H%M%S).db'"
+              # Keep the 14 most recent snapshots.
+              ls -1t data/backups/sinebot-*.db | tail -n +15 | xargs -r rm --
+            fi
+
             git pull origin main
             npm ci --omit=dev
             pm2 restart sinebot || pm2 start npm --name sinebot -- start
