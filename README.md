@@ -68,6 +68,9 @@ Slash commands register **globally** by default, so every server the bot joins
 picks them up (Discord may take up to an hour to propagate). During development,
 `npm run deploy-commands -- --guild` registers to `GUILD_ID` instantly instead.
 
+See [DEPLOY.md](DEPLOY.md) for server prerequisites, the deploy pipeline, and
+rollback.
+
 ### Per-server configuration
 
 Nothing is tracked until an admin points each game at a channel:
