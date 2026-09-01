@@ -2,6 +2,7 @@ import { createSelfReportStore } from "../../data/selfReportStore.js";
 import { parseConnectionsResult } from "./parser.js";
 import { basePoints, dailyScore } from "./score.js";
 import { puzzleNumberForET } from "./summary.js";
+import { bestWorstFields } from "../../utils/statFields.js";
 
 const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "🟪" };
 
@@ -78,6 +79,34 @@ export default {
     return lines.join("\n");
   },
 
+  /** What this game's `score` counts, for axis labels. */
+  scoreLabel: "mistakes",
+
+  /**
+   * What /distribution can plot. Mistakes are a small fixed range, so they bin
+   * one-per-value; daily points spread across roughly 0..130 and get equal-width
+   * bins instead. Both read getSeries() rows, where `points` is already the full
+   * daily score.
+   */
+  distributionMetrics: [
+    {
+      id: "mistakes",
+      label: "Mistakes",
+      axis: "Days",
+      discrete: true,
+      min: 0,
+      max: 4,
+      valueOf: (row) => row.score,
+    },
+    {
+      id: "points",
+      label: "Daily points",
+      axis: "Days",
+      bins: 12,
+      valueOf: (row) => row.points,
+    },
+  ],
+
   leaderboardTitle: "Points Leaderboard",
   leaderboardFilter: (e) => e.games > 0,
   leaderboardEmpty: "No Connections results recorded yet.",
@@ -103,8 +132,18 @@ export default {
       inline: true,
     },
     {
-      name: "🎯 Avg. mistakes",
-      value: s.wins ? s.avgScore.toFixed(2) : "N/A",
+      // Averaged over every day played: a loss really does score 0 points, so
+      // leaving those out would flatter everyone who ever choked.
+      name: "📊 Avg. score",
+      value: s.games ? `${s.avgPoints.toFixed(1)} pts/day` : "N/A",
+      inline: true,
+    },
+    {
+      name: "🎯 Mistakes",
+      value: s.wins
+        ? `avg ${s.avgScore.toFixed(2)}  ·  med ${s.medianScore.toFixed(2)}` +
+          (s.stdevScore === null ? "" : `  ·  σ ${s.stdevScore.toFixed(2)}`)
+        : "N/A",
       inline: true,
     },
     {
@@ -120,4 +159,13 @@ export default {
       ].join("\n"),
     },
   ],
+
+  /** Shown only for `/stats detail:true`. More points is better. */
+  detailFields: (s) =>
+    bestWorstFields(s, {
+      by: "meanPoints",
+      direction: "higher",
+      label: "avg. score",
+      format: (b) => `${b.meanPoints.toFixed(1)} pts`,
+    }),
 };

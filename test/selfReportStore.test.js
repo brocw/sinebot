@@ -129,6 +129,66 @@ test("stats aggregate points, wins and streak", () => {
   assert.equal(s.totalPoints, 304);
 });
 
+test("stats average points over every day played, losses included", () => {
+  const g = newGuild();
+  post(g, "alice", 1);
+  post(g, "alice", 2, { mistakes: 2 });
+  post(g, "alice", 3, { solved: false });
+  post(g, "alice", 4);
+
+  const s = store.getStats(g, "alice");
+  // 304 points across 4 days played — the loss counts as the 0 it scored.
+  assert.equal(s.avgPoints, 76);
+});
+
+test("stats report median and spread over solved days only", () => {
+  const g = newGuild();
+  post(g, "alice", 1); // 0 mistakes
+  post(g, "alice", 2, { mistakes: 2 });
+  post(g, "alice", 3, { solved: false }); // no score at all
+  post(g, "alice", 4); // 0 mistakes
+
+  const s = store.getStats(g, "alice");
+  assert.equal(s.medianScore, 0, "median of [0, 2, 0]");
+  // Sample deviation of [0, 2, 0]: mean 2/3, ss 8/3, /2, square rooted.
+  assert.ok(Math.abs(s.stdevScore - Math.sqrt(4 / 3)) < 1e-9);
+});
+
+test("median and spread are null when nothing was ever solved", () => {
+  const g = newGuild();
+  post(g, "alice", 1, { solved: false });
+
+  const s = store.getStats(g, "alice");
+  assert.equal(s.medianScore, null);
+  assert.equal(s.stdevScore, null);
+  assert.equal(s.avgScore, 0);
+});
+
+test("stats break results down by weekday and month", () => {
+  const g = newGuild();
+  // Local-time constructor, because the buckets are local-time too.
+  const at = (y, m, d) => new Date(y, m - 1, d, 12).getTime();
+  const solve = (puzzle, mistakes, ts) =>
+    store.record(g, { puzzle, solved: true, mistakes }, "alice", `bd-${puzzle}`, ts);
+
+  solve(101, 1, at(2026, 6, 1)); // Monday
+  solve(108, 3, at(2026, 6, 8)); // Monday
+  solve(102, 2, at(2026, 6, 2)); // Tuesday
+
+  const s = store.getStats(g, "alice");
+
+  const [mon, tue, wed] = s.byWeekday;
+  assert.equal(mon.plays, 2);
+  assert.equal(mon.meanScore, 2, "mistakes across the two Mondays");
+  assert.equal(mon.meanPoints, 101, "100 base + a one-day streak, both Mondays");
+  assert.equal(tue.plays, 1);
+  assert.equal(wed.plays, 0);
+
+  assert.equal(s.byMonth.length, 1);
+  assert.equal(s.byMonth[0].key, "2026-06");
+  assert.equal(s.byMonth[0].plays, 3);
+});
+
 test("getStats returns null for a player with no results", () => {
   assert.equal(store.getStats(newGuild(), "nobody"), null);
 });

@@ -3,6 +3,7 @@ import { WORDLE_BOT_ID, parseWordleResult } from "./parser.js";
 import { fetchDailyWord, assessCommonality } from "./daily.js";
 import { joinNames } from "../puzzleNumber.js";
 import { placeLabel } from "../../utils/leaderboard.js";
+import { bestWorstFields } from "../../utils/statFields.js";
 
 const store = createAggregateStore("wordle");
 
@@ -54,6 +55,27 @@ export default {
     return lines;
   },
 
+  /** What this game's `score` counts, for axis labels. */
+  scoreLabel: "guesses",
+
+  /**
+   * What /distribution can plot. Read off getSeries() rows, so no store change
+   * is needed to add one. Wordle scores are guesses over a fixed 1..6 range, so
+   * the bins are the values themselves and the range is declared rather than
+   * inferred — a week with no 6/6 should still show an empty 6 bar.
+   */
+  distributionMetrics: [
+    {
+      id: "guesses",
+      label: "Guesses",
+      axis: "Days",
+      discrete: true,
+      min: 1,
+      max: 6,
+      valueOf: (row) => row.score,
+    },
+  ],
+
   leaderboardTitle: "Crown Leaderboard",
   leaderboardFilter: (e) => e.crowns > 0,
   leaderboardEmpty: "No crowns recorded yet.",
@@ -83,9 +105,17 @@ export default {
       inline: true,
     },
     {
-      name: "🎯 Avg. guesses",
+      name: "🎯 Guesses",
       value: s.wins
-        ? `${s.avgScore.toFixed(2)}${s.failures ? `  (${s.failures} failure${s.failures === 1 ? "" : "s"} excluded)` : ""}`
+        ? [
+            `avg ${s.avgScore.toFixed(2)}  ·  med ${s.medianScore.toFixed(2)}` +
+              (s.stdevScore === null ? "" : `  ·  σ ${s.stdevScore.toFixed(2)}`),
+            s.failures
+              ? `${s.failures} failure${s.failures === 1 ? "" : "s"} excluded`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n")
         : "N/A",
       inline: true,
     },
@@ -104,4 +134,13 @@ export default {
           .join("\n") || "None",
     },
   ],
+
+  /** Shown only for `/stats detail:true`. Fewer guesses is better. */
+  detailFields: (s) =>
+    bestWorstFields(s, {
+      by: "meanScore",
+      direction: "lower",
+      label: "avg. guesses",
+      format: (b) => b.meanScore.toFixed(2),
+    }),
 };

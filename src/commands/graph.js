@@ -1,19 +1,13 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
-import { ChartJSNodeCanvas } from "chartjs-node-canvas";
 import { gameOption, gameFrom } from "../games/registry.js";
-
-const COLORS = [
-  "#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF",
-  "#FF9F40", "#B0BEC5", "#7BC8A4", "#F4A460", "#DDA0DD",
-];
-
-// Renderer construction is expensive (it spins up a canvas and registers Chart.js
-// plugins), so build it once rather than per invocation.
-const canvas = new ChartJSNodeCanvas({
-  width: 1000,
-  height: 560,
-  backgroundColour: "white",
-});
+import { renderChart, chrome } from "../charts/render.js";
+import { seriesColor, scale } from "../charts/theme.js";
+import {
+  avatarPlugin,
+  loadAvatars,
+  AVATAR_PADDING,
+} from "../charts/avatarPlugin.js";
+import { linearRegression, mean } from "../utils/stats.js";
 
 /**
  * Available chart metrics.
@@ -21,6 +15,8 @@ const canvas = new ChartJSNodeCanvas({
  * `value` maps one result row to a number; `aggregate` says how those combine
  * within a bucket; `cumulative` carries totals forward across buckets.
  * `needsPoints` hides point-based metrics for games that don't score points.
+ * `bestIs` says which end of the metric is good, so `top` ranks correctly —
+ * most crowns wins, but *fewest* guesses does.
  */
 const METRICS = {
   crowns: {
@@ -29,6 +25,7 @@ const METRICS = {
     chart: "bar",
     value: (r) => (r.isCrown ? 1 : 0),
     aggregate: "sum",
+    bestIs: "high",
   },
   "crowns-cumulative": {
     label: "Crowns (cumulative)",
@@ -37,6 +34,7 @@ const METRICS = {
     value: (r) => (r.isCrown ? 1 : 0),
     aggregate: "sum",
     cumulative: true,
+    bestIs: "high",
   },
   points: {
     label: "Points",
@@ -45,6 +43,7 @@ const METRICS = {
     value: (r) => r.points,
     aggregate: "sum",
     needsPoints: true,
+    bestIs: "high",
   },
   "points-cumulative": {
     label: "Points (cumulative)",
@@ -54,6 +53,7 @@ const METRICS = {
     aggregate: "sum",
     cumulative: true,
     needsPoints: true,
+    bestIs: "high",
   },
   plays: {
     label: "Days played",
@@ -61,6 +61,7 @@ const METRICS = {
     chart: "bar",
     value: () => 1,
     aggregate: "sum",
+    bestIs: "high",
   },
   "avg-score": {
     label: "Average score",
@@ -70,6 +71,9 @@ const METRICS = {
     // counted as zero.
     value: (r) => (r.score === null ? null : r.score),
     aggregate: "mean",
+    // Both games' `score` is a "lower is better" figure: Wordle guesses,
+    // Connections mistakes.
+    bestIs: "low",
   },
 };
 
@@ -118,14 +122,43 @@ function keyFor(ts, granularity) {
   return `m${d.getFullYear()}-${d.getMonth()}`;
 }
 
-async function resolveLabel(row, guild) {
-  if (row.playerType === "name") return row.displayName;
+/**
+ * Display name and avatar for a player, from a single member fetch.
+ *
+ * Resolving the name already cost a fetch, so avatars ride along for free
+ * rather than doubling the calls when they're switched on.
+ */
+async function resolveMember(row, guild) {
+  if (row.playerType === "name") {
+    // An unresolved Wordle name has no Discord account behind it, so there is
+    // no avatar to show until /link-user maps it.
+    return { label: row.displayName, avatarUrl: null };
+  }
   try {
-    return (await guild.members.fetch(row.playerKey)).displayName;
+    const member = await guild.members.fetch(row.playerKey);
+    return {
+      label: member.displayName,
+      avatarUrl: member.displayAvatarURL({ extension: "png", size: 64 }),
+    };
   } catch {
     // Left the server, or the member is uncacheable — show a stable stub.
-    return `User …${row.playerKey.slice(-4)}`;
+    return { label: `User …${row.playerKey.slice(-4)}`, avatarUrl: null };
   }
+}
+
+/** Ranking value for `top`, matching how the metric is actually plotted. */
+function rankKey(data, metric) {
+  const present = data.filter((v) => v !== null);
+  if (present.length === 0) return null;
+  if (metric.cumulative) return present.at(-1);
+  if (metric.aggregate === "mean") return mean(present);
+  return present.reduce((a, b) => a + b, 0);
+}
+
+/** "y = 0.42x − 1.31  (R² 0.97)" */
+function equationOf(fit) {
+  const sign = fit.intercept < 0 ? "−" : "+";
+  return `y = ${fit.slope.toFixed(2)}x ${sign} ${Math.abs(fit.intercept).toFixed(2)}  (R² ${fit.r2.toFixed(2)})`;
 }
 
 export default {
@@ -154,6 +187,31 @@ export default {
         .setMinValue(2)
         .setMaxValue(52),
     )
+    .addUserOption((opt) =>
+      opt.setName("user").setDescription("Plot only this player"),
+    )
+    .addUserOption((opt) =>
+      opt
+        .setName("vs")
+        .setDescription("Plot a second player, head to head with `user`"),
+    )
+    .addIntegerOption((opt) =>
+      opt
+        .setName("top")
+        .setDescription("Plot only the top N players for this metric")
+        .setMinValue(1)
+        .setMaxValue(20),
+    )
+    .addBooleanOption((opt) =>
+      opt
+        .setName("trend")
+        .setDescription("Overlay a least-squares trend line and its equation"),
+    )
+    .addBooleanOption((opt) =>
+      opt
+        .setName("avatars")
+        .setDescription("Show profile pictures on line charts (default: on)"),
+    )
     .addStringOption(gameOption),
 
   async execute(interaction) {
@@ -165,12 +223,30 @@ export default {
     const granularity = interaction.options.getString("period") ?? "month";
     const count = interaction.options.getInteger("count") ?? 12;
 
+    const user = interaction.options.getUser("user");
+    const vs = interaction.options.getUser("vs");
+    const top = interaction.options.getInteger("top");
+    const trend = interaction.options.getBoolean("trend") ?? false;
+    const wantsAvatars = interaction.options.getBoolean("avatars") ?? true;
+
     if (metric.needsPoints && !game.hasPoints) {
       await interaction.editReply({
         content: `**${game.label}** doesn't track points, so "${metric.label}" isn't available for it. Try \`metric:Crowns\`.`,
       });
       return;
     }
+
+    // Naming players and asking for the top N are two different questions;
+    // honouring both would silently drop one of them.
+    if (top && (user || vs)) {
+      await interaction.editReply(
+        "Pick either `top` or specific players (`user`/`vs`), not both.",
+      );
+      return;
+    }
+
+    const picked = [user, vs].filter(Boolean);
+    const pickedIds = new Set(picked.map((u) => u.id));
 
     const buckets = buildBuckets(granularity, count);
     const index = new Map(buckets.map((b, i) => [b.key, i]));
@@ -179,6 +255,8 @@ export default {
     // Accumulate sum + count per player per bucket so either aggregation works.
     const players = new Map();
     for (const row of series) {
+      if (pickedIds.size && !pickedIds.has(row.playerKey)) continue;
+
       const i = index.get(keyFor(row.ts, granularity));
       if (i === undefined) continue; // outside the window
 
@@ -198,9 +276,9 @@ export default {
       p.counts[i] += 1;
     }
 
-    const datasets = [];
-    let colorIdx = 0;
-
+    // Resolve each player's plotted series before choosing which to keep, so
+    // `top` ranks on the same numbers the chart would draw.
+    let plotted = [];
     for (const p of players.values()) {
       let data = buckets.map((_, i) =>
         metric.aggregate === "mean"
@@ -218,10 +296,45 @@ export default {
       // Skip players with nothing in the window.
       if (data.every((v) => v === null || v === 0)) continue;
 
-      const color = COLORS[colorIdx % COLORS.length];
+      plotted.push({ row: p.row, data, key: rankKey(data, metric) });
+    }
+
+    plotted.sort((a, b) =>
+      metric.bestIs === "low" ? a.key - b.key : b.key - a.key,
+    );
+    if (top) plotted = plotted.slice(0, top);
+
+    if (plotted.length === 0) {
+      const who = picked.length
+        ? `No ${game.label} history for ${picked.map((u) => `<@${u.id}>`).join(" or ")} in this window.`
+        : `No ${game.label} history in this window yet.`;
+      await interaction.editReply(
+        `${who} Try a longer \`count\`, or run \`/backfill\` first.`,
+      );
+      return;
+    }
+
+    // Say so when a named player simply isn't in the data, rather than quietly
+    // rendering a one-line "head to head".
+    const missing = picked.filter(
+      (u) => !plotted.some((p) => p.row.playerKey === u.id),
+    );
+
+    // Stacking bars hides a trend line behind them, so bars go side by side
+    // whenever one is drawn. Called out in the subtitle rather than left to be
+    // discovered.
+    const unstacked = trend && metric.chart === "bar";
+    const stacked = metric.chart === "bar" && !unstacked;
+
+    const datasets = [];
+    for (const [i, p] of plotted.entries()) {
+      const color = seriesColor(i);
+      const { label, avatarUrl } = await resolveMember(p.row, interaction.guild);
+
       datasets.push({
-        label: await resolveLabel(p.row, interaction.guild),
-        data,
+        label,
+        avatarUrl,
+        data: p.data,
         backgroundColor: color,
         borderColor: color,
         borderWidth: metric.chart === "line" ? 2 : 0,
@@ -230,42 +343,68 @@ export default {
         spanGaps: true,
         pointRadius: metric.chart === "line" ? 3 : 0,
       });
-      colorIdx++;
+
+      if (!trend) continue;
+
+      const points = p.data
+        .map((y, x) => ({ x, y }))
+        .filter((pt) => pt.y !== null);
+      const fit = linearRegression(points);
+      if (!fit) continue;
+
+      datasets.push({
+        type: "line",
+        label: `${label} — ${equationOf(fit)}`,
+        data: buckets.map((_, x) => fit.slope * x + fit.intercept),
+        borderColor: color,
+        backgroundColor: color,
+        borderWidth: 2,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+      });
     }
 
-    if (datasets.length === 0) {
-      await interaction.editReply(
-        `No ${game.label} history in this window yet. Try a longer \`count\`, or run \`/backfill\` first.`,
-      );
-      return;
-    }
+    // Avatars only make sense against a line's endpoint; bars have no single
+    // "last node" to sit beside.
+    const avatars = wantsAvatars && metric.chart === "line";
+    if (avatars) await loadAvatars(datasets);
 
-    const stacked = metric.chart === "bar";
     const periodWord = granularity === "week" ? "Week" : "Month";
+    const periodNoun = granularity === "week" ? "week" : "month";
 
-    const buffer = await canvas.renderToBuffer({
+    const notes = [];
+    if (trend) {
+      notes.push(
+        `Trend: least-squares fit; slope in ${metric.axis.toLowerCase()} per ${periodNoun}`,
+      );
+    }
+    if (unstacked) notes.push("bars unstacked to keep trend lines readable");
+    if (top) notes.push(`top ${plotted.length} of ${players.size} players`);
+    if (missing.length) {
+      notes.push(`no data for ${missing.map((u) => u.username).join(", ")}`);
+    }
+
+    const buffer = await renderChart({
       type: metric.chart,
       data: { labels: buckets.map((b) => b.label), datasets },
+      ...(avatars ? { plugins: [avatarPlugin] } : {}),
       options: {
-        responsive: false,
         interaction: { mode: "index", intersect: false },
-        plugins: {
-          legend: { position: "top" },
-          title: {
-            display: true,
-            text: `${game.label} — ${metric.label}; Last ${count} ${periodWord}${count === 1 ? "" : "s"}`,
-            font: { size: 18 },
-          },
-        },
+        ...(avatars ? { layout: { padding: { right: AVATAR_PADDING } } } : {}),
+        plugins: chrome({
+          title: `${game.label} — ${metric.label}; Last ${count} ${periodWord}${count === 1 ? "" : "s"}`,
+          subtitle: notes.join(" · ") || undefined,
+        }),
         scales: {
-          x: { stacked },
+          x: { stacked, ...scale() },
           y: {
             stacked,
-            beginAtZero: true,
-            title: { display: true, text: metric.axis },
-            ...(metric.aggregate === "sum" && !metric.cumulative
-              ? { ticks: { precision: 0 } }
-              : {}),
+            ...scale({
+              title: metric.axis,
+              beginAtZero: true,
+              precision: metric.aggregate === "sum" && !metric.cumulative,
+            }),
           },
         },
       },

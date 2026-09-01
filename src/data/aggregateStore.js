@@ -1,4 +1,5 @@
 import { db, tx } from "./db.js";
+import { mean, median, stdev, timeBreakdown } from "../utils/stats.js";
 
 // Storage for "aggregate" games — a single upstream bot posts one message
 // listing everyone's score for the day. Placement arrives already decided in
@@ -261,6 +262,10 @@ export function createAggregateStore(game) {
       if (r.place != null) placeCounts[r.place] = (placeCounts[r.place] ?? 0) + 1;
     }
 
+    // Aggregate games carry no points, so timeBreakdown's meanPoints comes back
+    // null for every bucket and the games rank their days on meanScore instead.
+    const { byWeekday, byMonth } = timeBreakdown(rows);
+
     return {
       crowns,
       rank: crownCounts.filter((n) => n > crowns).length + 1,
@@ -268,11 +273,13 @@ export function createAggregateStore(game) {
       games: rows.length,
       wins: solvedScores.length,
       failures: rows.length - solvedScores.length,
-      avgScore: solvedScores.length
-        ? solvedScores.reduce((a, b) => a + b, 0) / solvedScores.length
-        : 0,
+      avgScore: mean(solvedScores) ?? 0,
+      medianScore: median(solvedScores),
+      stdevScore: stdev(solvedScores),
       currentStreak: currentStreak(rows),
       placeCounts,
+      byWeekday,
+      byMonth,
     };
   }
 

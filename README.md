@@ -12,7 +12,9 @@ built so additional daily games drop in as self-contained modules.
 - **`/crowns`** — leaderboard for any registered game
 - **`/stats`** — per-player statistics
 - **`/graph`** — charts crowns, points, cumulative totals or averages over
-  weekly/monthly buckets
+  weekly/monthly buckets; head-to-head, top-N, trend lines and avatars
+- **`/distribution`** — bell curve of any tracked metric, with a normal fit
+- **`/correlation`** — group average vs. how many players share the crown
 - **`/backfill`** — rebuilds a game's history from channel history (admin only)
 - **`/link-user`** — maps an unresolved Wordle name to a Discord user (admin only)
 - **`/config`** — sets which channel each game is tracked in (admin only)
@@ -30,6 +32,10 @@ sinebot/
     ├── loader.js                # auto-loads events/ and commands/
     ├── deploy-commands.js       # registers slash commands (global by default)
     ├── commands/                # one file per slash command
+    ├── charts/
+    │   ├── theme.js             # dark palette, shared by every chart
+    │   ├── render.js            # the one Chart.js canvas
+    │   └── avatarPlugin.js      # profile pictures on line endpoints
     ├── events/                  # one file per Discord event
     ├── games/
     │   ├── registry.js          # discovers and validates game modules
@@ -43,7 +49,11 @@ sinebot/
     │   ├── aggregateStore.js    # shared store for bot-posted games
     │   ├── guildConfigStore.js  # per-guild channel routing
     │   └── userPrefsStore.js    # global per-user DM preferences
-    └── utils/                   # leaderboard formatting, permission checks
+    └── utils/
+        ├── stats.js             # mean/median/stdev, regression, histograms
+        ├── statFields.js        # best/worst embed fields
+        ├── leaderboard.js       # leaderboard formatting
+        └── permissions.js       # permission checks
 ```
 
 ## Setup
@@ -138,6 +148,32 @@ export default {
 Declaring `puzzleNumberFor` also enrols the game in the daily summary — its
 crown line is appended automatically when the aggregate game posts.
 
+Three optional fields wire a game into the analytics commands:
+
+```js
+  // What /distribution can plot. `valueOf` reads a getSeries() row, so no
+  // store change is needed. Use `discrete` + min/max for a small integer range,
+  // or `bins` for a continuous one.
+  distributionMetrics: [
+    { id: "hints", label: "Hints", discrete: true, min: 0, max: 3,
+      valueOf: (row) => row.score },
+  ],
+
+  // What `score` counts, for /correlation's axis label.
+  scoreLabel: "hints",
+
+  // Extra /stats fields, shown only for `detail:true`. bestWorstFields()
+  // renders the store's byWeekday/byMonth buckets; `direction` says which end
+  // of the metric is good.
+  detailFields: (s) =>
+    bestWorstFields(s, {
+      by: "meanScore",
+      direction: "lower",
+      label: "avg. hints",
+      format: (b) => b.meanScore.toFixed(2),
+    }),
+```
+
 The other shape is **aggregate**: one upstream bot posts everyone's scores in a
 single message (this is how Wordle works). Those use `createAggregateStore` and
 supply an `announce()` method instead of `formatDm`. See `src/games/wordle/`.
@@ -175,6 +211,42 @@ for that puzzle; ties share it. Because results arrive at any time, placement is
 recomputed as new results land — including for later puzzles, since a
 back-filled result extends a streak forward.
 
+## Charts
+
+Every chart renders dark, to sit alongside Discord's embeds. The palette,
+the single Chart.js canvas and the avatar plugin live in `src/charts/`; the
+maths behind them is in `src/utils/stats.js`, which is pure and unit-tested.
+
+### `/graph`
+
+Time series over weekly or monthly buckets.
+
+| Option | Effect |
+|---|---|
+| `metric` | Crowns, points, cumulative variants, days played, average score |
+| `period`, `count` | Bucket size and how many buckets |
+| `user`, `vs` | Plot one player, or two head to head |
+| `top` | Plot only the best N for the chosen metric |
+| `trend` | Overlay a least-squares fit, labelled with its equation and R² |
+| `avatars` | Profile pictures past each line's last point (line charts, default on) |
+
+`top` and `user`/`vs` are mutually exclusive. `trend` unstacks bar charts, since
+a stacked bar hides the line drawn over it. Avatars are fetched with a short
+timeout and skipped on failure — a chart never fails because a picture didn't
+load.
+
+### `/distribution`
+
+A histogram with the best-fitting normal curve over it, plus n, mean, median
+and σ. Takes a `user` to narrow it from the whole server to one player.
+
+### `/correlation`
+
+One point per day: the group's average that day against how many players tied
+for the crown. Reports Pearson's r and a fitted line. Days with no recorded
+crown are excluded and counted in the subtitle; repeated positions are drawn
+larger rather than stacked invisibly.
+
 ## Database
 
 SQLite at `data/sinebot.db`. Schema changes go in `src/data/migrations.js` as a
@@ -209,4 +281,8 @@ npm test
 
 Uses the built-in `node:test` runner; there are no test dependencies. Suites
 cover both parsers, the scoring rules, the shared self-report store (placement,
-streaks, crowns, rebuilds) and message routing through the registry.
+streaks, crowns, rebuilds, the statistical breakdowns), the statistics helpers
+in `src/utils/stats.js`, and message routing through the registry.
+
+Chart rendering itself is not unit-tested — the figures behind every chart are
+covered instead, in `test/stats.test.js`.

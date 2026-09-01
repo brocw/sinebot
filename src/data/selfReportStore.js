@@ -1,4 +1,5 @@
 import { db, tx } from "./db.js";
+import { mean, median, stdev, timeBreakdown } from "../utils/stats.js";
 
 // Storage for "self-report" games — every player posts their own result, so the
 // message author *is* the player and there is no name/alias machinery. This is
@@ -345,28 +346,41 @@ export function createSelfReportStore(game, spec) {
       rows.filter((r) => r.score !== null).map((r) => Number(r.puzzle_id)),
     );
 
+    // A loss scores 0 points, which is a real number and belongs in the points
+    // mean. It carries no `score` (no mistake count, no guess count), so it
+    // stays out of avgScore/median/stdev — those describe solved days only.
+    const pointsFor = (r) =>
+      r.score === null
+        ? 0
+        : dailyScore(r.points, streakAsOf(solved, Number(r.puzzle_id)));
+
     let totalPoints = 0;
-    let wins = 0;
     let crowns = 0;
-    let scoreTotal = 0;
+    const solvedScores = [];
     for (const r of rows) {
       if (r.is_crown) crowns++;
-      if (r.score === null) continue;
-      wins++;
-      scoreTotal += r.score;
-      totalPoints += dailyScore(r.points, streakAsOf(solved, Number(r.puzzle_id)));
+      totalPoints += pointsFor(r);
+      if (r.score !== null) solvedScores.push(r.score);
     }
+    const wins = solvedScores.length;
 
     // Anchored to the most recent puzzle *played*, so a recent loss breaks it.
     const latestPlayed = Math.max(...rows.map((r) => Number(r.puzzle_id)));
+
+    const { byWeekday, byMonth } = timeBreakdown(rows, { pointsOf: pointsFor });
 
     return {
       totalPoints,
       games: rows.length,
       wins,
       crowns,
-      avgScore: wins ? scoreTotal / wins : 0,
+      avgScore: mean(solvedScores) ?? 0,
+      avgPoints: rows.length ? totalPoints / rows.length : 0,
+      medianScore: median(solvedScores),
+      stdevScore: stdev(solvedScores),
       currentStreak: streakAsOf(solved, latestPlayed),
+      byWeekday,
+      byMonth,
       ...(extraStats ? extraStats(rows) : {}),
     };
   }

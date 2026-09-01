@@ -8,6 +8,11 @@ export default {
     .addUserOption((opt) =>
       opt.setName("user").setDescription("The player to look up (defaults to you)"),
     )
+    .addBooleanOption((opt) =>
+      opt
+        .setName("detail")
+        .setDescription("Add the best/worst day and month breakdown"),
+    )
     .addStringOption(gameOption),
 
   async execute(interaction) {
@@ -23,11 +28,17 @@ export default {
       return;
     }
 
+    // The breakdown is a chunk of extra fields, so it stays behind a flag
+    // rather than pushing the default embed past a glanceable length.
+    const detail = interaction.options.getBoolean("detail") ?? false;
+    const fields = [...game.statFields(stats)];
+    if (detail && game.detailFields) fields.push(...game.detailFields(stats));
+
     const displayName = target.displayName ?? target.username;
     const embed = new EmbedBuilder()
       .setTitle(`${game.emoji} ${game.label} stats for ${displayName}`)
       .setColor(game.color)
-      .addFields(...game.statFields(stats));
+      .addFields(...fields);
 
     await interaction.reply({ embeds: [embed] });
   },
