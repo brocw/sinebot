@@ -160,7 +160,7 @@ export default {
     },
   ],
 
-  /** Shown only for `/stats detail:true`. More points is better. */
+  /** Shown by /stats unless `detail:false`. More points is better. */
   detailFields: (s) =>
     bestWorstFields(s, {
       by: "meanPoints",

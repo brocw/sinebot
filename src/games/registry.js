@@ -53,7 +53,12 @@ export function getGame(id) {
 
 export const DEFAULT_GAME = registry.has("wordle") ? "wordle" : GAMES[0]?.id;
 
-const GAME_CHOICES = GAMES.map((g) => ({ name: g.label, value: g.id }));
+/**
+ * The `game` option's choices. Exported so a command that needs a variant —
+ * `/config dm` adds an "All games" entry — can build one without restating the
+ * registry.
+ */
+export const GAME_CHOICES = GAMES.map((g) => ({ name: g.label, value: g.id }));
 
 /**
  * Adds the standard `game` choice option to a slash command builder.

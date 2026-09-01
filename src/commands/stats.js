@@ -6,12 +6,12 @@ export default {
     .setName("stats")
     .setDescription("Show a player's game statistics")
     .addUserOption((opt) =>
-      opt.setName("user").setDescription("The player to look up (defaults to you)"),
+      opt.setName("user").setDescription("The player to look up (default: you)"),
     )
     .addBooleanOption((opt) =>
       opt
         .setName("detail")
-        .setDescription("Add the best/worst day and month breakdown"),
+        .setDescription("Best/worst weekday and month, ignoring buckets under 3 plays (default: on)"),
     )
     .addStringOption(gameOption),
 
@@ -28,9 +28,10 @@ export default {
       return;
     }
 
-    // The breakdown is a chunk of extra fields, so it stays behind a flag
-    // rather than pushing the default embed past a glanceable length.
-    const detail = interaction.options.getBoolean("detail") ?? false;
+    // On by default: the breakdown is the interesting half of the embed, and
+    // asking for it every time was friction. `detail:false` trims back to the
+    // headline fields.
+    const detail = interaction.options.getBoolean("detail") ?? true;
     const fields = [...game.statFields(stats)];
     if (detail && game.detailFields) fields.push(...game.detailFields(stats));
 

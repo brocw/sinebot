@@ -7,7 +7,9 @@ snapshots the database, pulls, installs, and restarts pm2.
 Two things are **not** automated and must be done by hand:
 
 - **Registering slash commands** (`npm run deploy-commands`) — run from a
-  workstation, whenever a command's name, description or options change.
+  workstation, whenever a command's name, description or options change, or one
+  is added or removed. Registration replaces the whole set, so a deleted command
+  disappears from the picker on its own.
 - **Per-server setup in Discord** (`/config`) — once per guild.
 
 ---
@@ -93,8 +95,9 @@ Several games can share one channel. Then import history:
 `/backfill` deletes that game's recorded results before rebuilding, so it asks
 for confirmation. Run one game at a time — each pages the full channel history.
 
-`/config`, `/backfill` and `/link-user` require **Manage Server**, or the user ID
-in `OWNER_ID`.
+`/config channel`, `/config disable`, `/backfill` and `/link-user` require
+**Manage Server**, or the user ID in `OWNER_ID`. `/config dm` and `/config show`
+are open to everyone.
 
 ---
 

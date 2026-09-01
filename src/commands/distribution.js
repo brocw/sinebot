@@ -2,6 +2,7 @@ import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { GAMES, gameOption, gameFrom } from "../games/registry.js";
 import { renderChart, chrome } from "../charts/render.js";
 import { seriesColor, scale, ACCENT } from "../charts/theme.js";
+import { chartLabel } from "../charts/labels.js";
 import { mean, median, stdev, histogram, normalPdf } from "../utils/stats.js";
 
 // Bell curve: how often each outcome actually happens, with the normal
@@ -15,23 +16,34 @@ import { mean, median, stdev, histogram, normalPdf } from "../utils/stats.js";
  * A game declares what it can plot, so a new game's metrics appear here on the
  * next `npm run deploy-commands` with no edit to this file — the same
  * arrangement `gameOption` uses for the game list itself.
+ *
+ * Because the list is pooled, each choice is named with the game (or games) it
+ * belongs to: the picker offers "Guesses (Wordle)" alongside "Mistakes
+ * (Connections)", so an impossible pairing is visible before it is submitted
+ * rather than only in the error that comes back.
  */
-const METRIC_CHOICES = [];
+const byMetric = new Map();
 for (const game of GAMES) {
   for (const metric of game.distributionMetrics ?? []) {
-    if (METRIC_CHOICES.some((c) => c.value === metric.id)) continue;
-    METRIC_CHOICES.push({ name: metric.label, value: metric.id });
+    let entry = byMetric.get(metric.id);
+    if (!entry) byMetric.set(metric.id, (entry = { label: metric.label, games: [] }));
+    entry.games.push(game.label);
   }
 }
+
+const METRIC_CHOICES = [...byMetric].map(([value, { label, games }]) => ({
+  name: `${label} (${games.join(", ")})`,
+  value,
+}));
 
 export default {
   data: new SlashCommandBuilder()
     .setName("distribution")
-    .setDescription("Bell curve: how often each result comes up")
+    .setDescription("Bell curve: how often each result comes up, against a normal fit")
     .addStringOption((opt) =>
       opt
         .setName("metric")
-        .setDescription("What to plot the spread of")
+        .setDescription("Which measure to spread out — must belong to the chosen game")
         .addChoices(...METRIC_CHOICES),
     )
     .addUserOption((opt) =>
@@ -120,7 +132,9 @@ export default {
       });
     }
 
-    const who = user ? (user.displayName ?? user.username) : "everyone";
+    // Drawn into the chart title, so it goes through the same emoji strip every
+    // other on-canvas name does.
+    const who = user ? chartLabel(user.displayName, user.username) : "everyone";
     const summary = [
       `n = ${values.length}`,
       `mean ${mu.toFixed(2)}`,

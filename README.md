@@ -11,14 +11,14 @@ built so additional daily games drop in as self-contained modules.
   serves many servers
 - **`/crowns`** — leaderboard for any registered game
 - **`/stats`** — per-player statistics
-- **`/graph`** — charts crowns, points, cumulative totals or averages over
-  weekly/monthly buckets; head-to-head, top-N, trend lines and avatars
+- **`/graph`** — charts running crown and point totals over weekly/monthly
+  buckets; head-to-head, top-N, trend lines and avatars
 - **`/distribution`** — bell curve of any tracked metric, with a normal fit
 - **`/correlation`** — group average vs. how many players share the crown
 - **`/backfill`** — rebuilds a game's history from channel history (admin only)
 - **`/link-user`** — maps an unresolved Wordle name to a Discord user (admin only)
-- **`/config`** — sets which channel each game is tracked in (admin only)
-- **`/settings`** — per-user DM preferences, global across servers
+- **`/config`** — everything configurable: which channel each game is tracked in
+  (admin only), and your own DM preferences (anyone)
 - **`/ping`** — bot and API latency
 
 ## Project Structure
@@ -35,6 +35,7 @@ sinebot/
     ├── charts/
     │   ├── theme.js             # dark palette, shared by every chart
     │   ├── render.js            # the one Chart.js canvas
+    │   ├── labels.js            # strips what the canvas cannot draw
     │   └── avatarPlugin.js      # profile pictures on line endpoints
     ├── events/                  # one file per Discord event
     ├── games/
@@ -145,8 +146,10 @@ export default {
 };
 ```
 
-Declaring `puzzleNumberFor` also enrols the game in the daily summary — its
-crown line is appended automatically when the aggregate game posts.
+Declaring `puzzleNumberFor` on a **self-report** game also enrols it in the daily
+summary — its header and crown line are appended automatically when the
+aggregate game posts. An aggregate game may declare it too, but only to name its
+own puzzle; nothing is appended for it.
 
 Three optional fields wire a game into the analytics commands:
 
@@ -162,7 +165,7 @@ Three optional fields wire a game into the analytics commands:
   // What `score` counts, for /correlation's axis label.
   scoreLabel: "hints",
 
-  // Extra /stats fields, shown only for `detail:true`. bestWorstFields()
+  // Extra /stats fields, shown unless `detail:false`. bestWorstFields()
   // renders the store's byWeekday/byMonth buckets; `direction` says which end
   // of the metric is good.
   detailFields: (s) =>
@@ -217,21 +220,30 @@ Every chart renders dark, to sit alongside Discord's embeds. The palette,
 the single Chart.js canvas and the avatar plugin live in `src/charts/`; the
 maths behind them is in `src/utils/stats.js`, which is pure and unit-tested.
 
+Charts are drawn by node-canvas, which goes through Cairo, which cannot draw
+colour emoji — an emoji in a display name comes out as an empty box. Every name
+bound for a canvas therefore passes through `chartLabel` in
+`src/charts/labels.js`, which strips emoji and falls back to the username when a
+name is nothing else.
+
 ### `/graph`
 
-Time series over weekly or monthly buckets.
+Running totals over weekly or monthly buckets.
 
 | Option | Effect |
 |---|---|
-| `metric` | Crowns, points, cumulative variants, days played, average score |
-| `period`, `count` | Bucket size and how many buckets |
+| `metric` | Crowns or points, both as a running total (default: crowns) |
+| `period`, `count` | Bucket size (default: weekly) and how many buckets |
 | `user`, `vs` | Plot one player, or two head to head |
-| `top` | Plot only the best N for the chosen metric |
+| `top` | Plot only the leading N |
 | `trend` | Overlay a least-squares fit, labelled with its equation and R² |
-| `avatars` | Profile pictures past each line's last point (line charts, default on) |
+| `avatars` | Profile pictures past each line's last point (default on) |
 
-`top` and `user`/`vs` are mutually exclusive. `trend` unstacks bar charts, since
-a stacked bar hides the line drawn over it. Avatars are fetched with a short
+Only cumulative metrics are offered. The per-bucket ones this used to carry —
+crowns and points on their own, days played, average score — read as noise at
+weekly resolution, and the running total is what a leaderboard chart is for.
+
+`top` and `user`/`vs` are mutually exclusive. Avatars are fetched with a short
 timeout and skipped on failure — a chart never fails because a picture didn't
 load.
 
@@ -265,8 +277,12 @@ schema_version      — applied migration ledger
 
 ## Permissions
 
-`/backfill`, `/link-user` and `/config` require the **Manage Server** permission,
-or the user ID in `OWNER_ID`. The check is at runtime rather than via Discord's
+`/backfill`, `/link-user` and `/config channel`/`disable` require the **Manage
+Server** permission, or the user ID in `OWNER_ID`. `/config dm` and
+`/config show` are open to everyone — they change or report only the caller's
+own preferences, plus which channels are already visibly being watched.
+
+The check is at runtime rather than via Discord's
 `setDefaultMemberPermissions`, because the latter is enforced per-guild and would
 lock the owner out of servers where they aren't an admin.
 
@@ -282,7 +298,9 @@ npm test
 Uses the built-in `node:test` runner; there are no test dependencies. Suites
 cover both parsers, the scoring rules, the shared self-report store (placement,
 streaks, crowns, rebuilds, the statistical breakdowns), the statistics helpers
-in `src/utils/stats.js`, and message routing through the registry.
+in `src/utils/stats.js`, message routing through the registry, chart-label
+sanitising, and the Wordle daily announcement (including its puzzle numbering,
+pinned against NYT's own `days_since_launch`).
 
 Chart rendering itself is not unit-tested — the figures behind every chart are
 covered instead, in `test/stats.test.js`.

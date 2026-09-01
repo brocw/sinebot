@@ -79,7 +79,7 @@ async function postDailySummary(message, announcingGame, parsed) {
 }
 
 // Lets a player mute or unmute result DMs by replying in the DM itself,
-// mirroring `/settings dm`. Preferences are global, so this needs no guild.
+// mirroring `/config dm`. Preferences are global, so this needs no guild.
 async function handleDmReply(message) {
   const content = message.content.trim().toLowerCase();
   const ids = GAMES.map((g) => g.id);

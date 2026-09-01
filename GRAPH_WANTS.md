@@ -4,8 +4,9 @@ Status of the original list. ✅ shipped, ⏸️ deferred (with the reason).
 
 1. ✅ **Approx equation of a line plotted for a user's cumulative crowns**
    `/graph trend:true` fits a least-squares line per plotted player and puts
-   `y = mx + c (R² …)` in the legend. Works on any metric, not just cumulative
-   crowns; bar charts unstack so the line stays visible.
+   `y = mx + c (R² …)` in the legend. Works on both metrics — and since
+   `/graph` now offers only cumulative ones, there are no bar charts left for a
+   trend line to hide behind.
 
 2. ✅ **Head to head (or top k) as additional parameters for graph**
    `/graph user:@a vs:@b` for head to head, `/graph top:5` for the best N.
@@ -13,9 +14,10 @@ Status of the original list. ✅ shipped, ⏸️ deferred (with the reason).
    five *lowest* averages.
 
 3. ⏸️ **'Best' and 'Worst' periods, days, hours (personal stats)**
-   Periods and days shipped: `/stats detail:true` shows the best and worst
-   weekday and month, ranked on each game's own measure (fewest guesses for
-   Wordle, most points for Connections), ignoring buckets under 3 plays.
+   Periods and days shipped: `/stats` shows the best and worst weekday and
+   month, ranked on each game's own measure (fewest guesses for Wordle, most
+   points for Connections), ignoring buckets under 3 plays. Shown by default;
+   `detail:false` trims back to the headline fields.
 
    **Hours are deferred.** Every Wordle row carries the upstream bot's post
    timestamp, so all players on a given day share one `ts` — an hour-of-day
@@ -53,6 +55,25 @@ Status of the original list. ✅ shipped, ⏸️ deferred (with the reason).
    `/correlation` — a scatter of one point per day with Pearson's r and a
    fitted line. Repeated positions are drawn larger rather than stacked
    invisibly.
+
+   **Read the number with care.** The chart is shipped as asked, but four things
+   stand between it and the question it appears to answer:
+
+   - **Ties are bounded by turnout.** A three-player day cannot show four people
+     sharing the crown, so much of the y-axis's variance is attendance rather
+     than difficulty. Plotting the *share* of that day's players who tied would
+     remove the confound.
+   - **Failures are dropped from the average** (`row.score !== null`), so a
+     brutal day where half the field posted X/6 reads as *easier* than it was —
+     the signal inverts exactly where it matters most. Scoring a failure as 7
+     would fix it.
+   - **The axes aren't independent.** The crown winners' own scores are inside
+     the group average, so "low average, many crowns" is partly true by
+     construction.
+   - **Pearson's r and an OLS fit are the wrong tools** for a small, skewed,
+     bounded count. Spearman's ρ would be the honest statistic.
+
+   Worth an overhaul before anyone draws a conclusion from it.
 
 9. ⏸️ **Before and after sinebot graph, statistics**
    Tabled — `/graph`'s `period` and `count` already narrow the window enough to
