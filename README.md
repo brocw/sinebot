@@ -19,6 +19,8 @@ built so additional daily games drop in as self-contained modules.
   against its own average
 - **`/backfill`** — rebuilds a game's history from channel history (admin only)
 - **`/link-user`** — maps an unresolved Wordle name to a Discord user (admin only)
+- **`/unlinked`** — lists the names still holding results of their own, and what
+  each is worth (admin only)
 - **`/config`** — everything configurable: which channel each game is tracked in
   (admin only), and your own DM preferences (anyone)
 - **`/ping`** — bot and API latency
@@ -207,6 +209,26 @@ The upstream Wordle bot posts one message listing every player's score. The bot
 parses the `👑` line, awards a crown to each player on it, and records the rest
 by placement. Players the upstream bot could not resolve appear as `@Name` and
 are stored under a normalised name key until `/link-user` maps them.
+`/unlinked` lists the names currently in that state.
+
+The name key is everything before the first `|`, lowercased, with Discord's
+backslash escaping removed — so `@Luc | Graphic Design Lead` and
+`@Luc || Graphic Design Lead` are one person, and stay one person when the role
+changes. This matters more than it looks: a key that still carried the role
+suffix minted a *new* player on every edit, quietly forking that person's
+history and restarting their streak until an admin noticed.
+
+The header is matched as `on an? (\d+) day streak`. The article is not
+decoration — the upstream bot writes whichever one the number reads with, so a
+pattern accepting only "a" discards every message whose streak begins 8, 11, 18
+or 80–89, and with it that whole day's results.
+
+**Current streak** counts back from the group's most recent posted puzzle, not
+from the player's own last appearance, so a run that has already ended reads
+zero rather than freezing at its final length. Days the upstream bot never
+posted are stepped over: nobody could have played them, so they cost nobody
+their streak. A failure still breaks it — the player was there and didn't
+solve it.
 
 ### Connections
 
@@ -319,8 +341,8 @@ schema_version      — applied migration ledger
 
 ## Permissions
 
-`/backfill`, `/link-user` and `/config channel`/`disable` require the **Manage
-Server** permission, or the user ID in `OWNER_ID`. `/config dm` and
+`/backfill`, `/link-user`, `/unlinked` and `/config channel`/`disable` require
+the **Manage Server** permission, or the user ID in `OWNER_ID`. `/config dm` and
 `/config show` are open to everyone — they change or report only the caller's
 own preferences, plus which channels are already visibly being watched.
 
@@ -339,7 +361,9 @@ npm test
 
 Uses the built-in `node:test` runner; there are no test dependencies. Suites
 cover both parsers, the scoring rules, the shared self-report store (placement,
-streaks, crowns, rebuilds, the statistical breakdowns), the statistics helpers
+streaks, crowns, rebuilds, the statistical breakdowns), the aggregate store
+(name-key normalisation across both suffix spellings, streak anchoring and
+outage days, the unlinked listing), the statistics helpers
 in `src/utils/stats.js`, message routing through the registry, chart-label
 sanitising, and the Wordle daily announcement (including its puzzle numbering,
 pinned against NYT's own `days_since_launch`).

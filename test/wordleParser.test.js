@@ -43,8 +43,33 @@ test("keeps mixed id/name users in document order", () => {
   ]);
 });
 
+// The bot writes the article the way the number reads aloud, so 8, 11, 18 and
+// 80-89 arrive as "an". Matching only "a" discarded those messages whole, which
+// cost the production database thirteen days of results.
+for (const n of [8, 11, 18, 80, 82, 89]) {
+  test(`parses a header reading "an ${n} day streak"`, () => {
+    const r = parseWordleResult(
+      msg(`Your group is on an ${n} day streak!  Here are yesterday's results:\n 2/6: @Broc W || SINEBOT Lead\n3/6: @Dante V`),
+    );
+    assert.notEqual(r, null, "an-article header must not be discarded");
+    assert.equal(r.streak, n);
+    assert.equal(r.scores.length, 2);
+  });
+}
+
+test("still parses the ordinary a-article header", () => {
+  assert.equal(parseWordleResult(msg(`${HEADER}\n👑 3/6: <@111>`)).streak, 42);
+});
+
 test("rejects messages without a streak header", () => {
   assert.equal(parseWordleResult(msg("just chatting\n👑 3/6: <@111>")), null);
+});
+
+test("does not treat an arbitrary word as the article", () => {
+  assert.equal(
+    parseWordleResult(msg("on the 42 day streak\n👑 3/6: <@111>")),
+    null,
+  );
 });
 
 test("rejects messages too short to be a result", () => {
