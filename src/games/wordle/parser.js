@@ -25,7 +25,12 @@ export function parseWordleResult(message) {
   const lines = message.content.split("\n").filter((l) => l.trim());
   if (lines.length < 2) return null;
 
-  const streakMatch = lines[0].match(/on a (\d+) day streak/);
+  // The upstream bot picks the article from how the number reads aloud: "a 42
+  // day streak", but "an 8 day streak", "an 11", "an 18", "an 80" through "an
+  // 89". Matching only "a" made this return null for those days, and a null
+  // here discards the whole message — 13 days of results were lost that way,
+  // including ten consecutive ones while the group streak ran 80 to 89.
+  const streakMatch = lines[0].match(/on an? (\d+) day streak/);
   if (!streakMatch) return null;
 
   const streak = parseInt(streakMatch[1], 10);

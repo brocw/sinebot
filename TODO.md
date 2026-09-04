@@ -31,7 +31,11 @@
 
 ## Before this deploy reaches Discord
 
-- `npm run deploy-commands` — command shapes changed and `/settings` was
-  removed; neither propagates until this is run from a workstation.
+- `npm run deploy-commands` — command shapes changed, `/settings` was removed
+  and `/periods` and `/unlinked` are new; none of it propagates until this is
+  run from a workstation.
+- `/backfill game:Wordle`, then `/unlinked` — recovers the 13 days the old
+  header pattern discarded, and claims the old name spellings they arrive
+  under. Full procedure in `DEPLOY.md`.
 - Check the next daily Wordle post: the header's puzzle number should match the
   word on the line below it.

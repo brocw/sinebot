@@ -9,19 +9,36 @@ import { mean, median, stdev, timeBreakdown } from "../utils/stats.js";
 // to a Discord account, hence the name-key and alias machinery below.
 
 /**
+ * Everything before the role suffix, with Discord's escaping undone.
+ *
+ * The upstream bot has written the separator both ways over time — "Chloe G ||
+ * President" in 2025, "Luc | Graphic Design Lead" since — so splitting on the
+ * first pipe is the only rule that survives both. Splitting on "||" alone
+ * meant a single-pipe suffix stayed part of the name, which minted a fresh
+ * identity for the same person every time they edited their role: their
+ * results stopped landing on their account and their streak restarted from
+ * zero until an admin noticed and ran /link-user.
+ *
+ * Backslashes go first because Discord escapes pipes in display names, so the
+ * separator can arrive as "\|" and would otherwise not be found at all.
+ */
+function stripRole(raw) {
+  return raw.replace(/\\/g, "").split("|")[0].trim();
+}
+
+/**
  * Stable storage key for a name-type user.
  *
  * @param {string} raw  e.g. "Keanu B\\. || Vice President"
  * @returns {string}    e.g. "name:keanu b."
  */
 export function nameKey(raw) {
-  const namePart = raw.split("||")[0].trim().replace(/\\/g, "");
-  return `name:${namePart.toLowerCase()}`;
+  return `name:${stripRole(raw).toLowerCase()}`;
 }
 
-/** Strips the "|| Role" suffix for display. */
+/** Strips the role suffix for display. */
 export function displayFromRaw(raw, fallbackKey) {
-  return raw?.split("||")[0].trim() ?? fallbackKey.replace("name:", "");
+  return raw ? stripRole(raw) : fallbackKey.replace("name:", "");
 }
 
 const selectPlayerByUid = db.prepare(
@@ -76,6 +93,19 @@ const repointResults = db.prepare(
   "UPDATE results SET player_id = ? WHERE player_id = ?",
 );
 const deletePlayer = db.prepare("DELETE FROM players WHERE player_id = ?");
+const selectUnlinked = db.prepare(
+  `SELECT p.name_key, p.display_name,
+          COUNT(r.result_id)        AS results,
+          COALESCE(SUM(r.is_crown), 0) AS crowns,
+          MIN(r.ts)                 AS first_ts,
+          MAX(r.ts)                 AS last_ts,
+          GROUP_CONCAT(DISTINCT r.game) AS games
+   FROM players p
+   LEFT JOIN results r ON r.player_id = p.player_id
+   WHERE p.guild_id = ? AND p.discord_user_id IS NULL
+   GROUP BY p.player_id
+   ORDER BY results DESC, p.name_key`,
+);
 const selectAllResults = db.prepare(
   `SELECT p.discord_user_id, p.name_key, p.display_name,
           r.score, r.is_crown, r.place, r.message_id, r.ts
@@ -160,23 +190,43 @@ function byPlayer(guildId, game) {
 }
 
 /**
- * Consecutive days ending at the most recent day played, counting only days the
- * player actually solved. A failure (null score) on the latest day breaks it.
+ * The day bucket a result falls in. Aggregate rows all carry the upstream
+ * bot's post timestamp, so every player on a given day shares one of these.
  */
-function currentStreak(rows) {
-  const dayOf = (ts) => Math.floor(ts / 86_400_000);
-  const solvedDays = new Set(
+const dayOf = (ts) => Math.floor(ts / 86_400_000);
+
+/** Every day this guild has a posted result for, ascending. */
+function puzzleDays(players) {
+  const days = new Set();
+  for (const entry of players.values()) {
+    for (const r of entry.rows) days.add(dayOf(r.ts));
+  }
+  return [...days].sort((a, b) => a - b);
+}
+
+/**
+ * Consecutive puzzles solved, counting back from the group's most recent one.
+ *
+ * Two things this deliberately avoids. It does not count back from the
+ * player's own last appearance: a run that ended in November is not a current
+ * streak however long it ran, and anchoring on the player made one player who
+ * had not shown up for 359 days still read "5 days".
+ *
+ * And it steps through the days the group actually posted rather than walking
+ * the calendar one date at a time. The upstream bot is the only evidence a
+ * puzzle day happened, so a date it never posted is an outage, not a miss —
+ * nobody could have played it, and it should cost nobody their streak.
+ *
+ * A failure (null score) is still a miss: the player was there and did not
+ * solve it.
+ */
+function currentStreak(rows, days) {
+  const solved = new Set(
     rows.filter((r) => r.score !== null).map((r) => dayOf(r.ts)),
   );
-  const played = rows.map((r) => dayOf(r.ts));
-  if (played.length === 0) return 0;
 
-  let day = Math.max(...played);
   let streak = 0;
-  while (solvedDays.has(day)) {
-    streak++;
-    day--;
-  }
+  for (let i = days.length - 1; i >= 0 && solved.has(days[i]); i--) streak++;
   return streak;
 }
 
@@ -276,7 +326,7 @@ export function createAggregateStore(game) {
       avgScore: mean(solvedScores) ?? 0,
       medianScore: median(solvedScores),
       stdevScore: stdev(solvedScores),
-      currentStreak: currentStreak(rows),
+      currentStreak: currentStreak(rows, puzzleDays(players)),
       placeCounts,
       byWeekday,
       byMonth,
@@ -305,6 +355,33 @@ export function createAggregateStore(game) {
   }
 
   return { record, rebuild, getLeaderboard, getStats, getSeries };
+}
+
+/**
+ * Every player in a guild the upstream bot never resolved to a Discord
+ * account, busiest first.
+ *
+ * These are the people whose results are stranded: they hold their own crowns
+ * and their own streak instead of contributing to somebody's account, and
+ * nothing surfaces them until someone reads a leaderboard and notices a name
+ * where a mention should be. Like aliases, this is not game-scoped — a player
+ * row belongs to a person, not a game — so the games they appear in come back
+ * as a field rather than a filter.
+ *
+ * @returns {{ nameKey: string, displayName: string, results: number,
+ *             crowns: number, firstTs: number|null, lastTs: number|null,
+ *             games: string[] }[]}
+ */
+export function listUnlinked(guildId) {
+  return selectUnlinked.all(guildId).map((r) => ({
+    nameKey: r.name_key,
+    displayName: displayFromRaw(r.display_name, r.name_key),
+    results: r.results,
+    crowns: r.crowns,
+    firstTs: r.first_ts,
+    lastTs: r.last_ts,
+    games: r.games ? r.games.split(",") : [],
+  }));
 }
 
 /**

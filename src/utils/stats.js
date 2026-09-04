@@ -167,6 +167,16 @@ export function normalPdf(x, mu, sigma) {
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /**
+ * The month bucket a timestamp belongs to, as `YYYY-MM` in local time.
+ * Exported so a caller can filter rows to a window of months without
+ * re-deriving the key format timeBreakdown() sorts on.
+ */
+export function monthKey(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
  * Groups result rows by weekday and by calendar month.
  *
  * Shared by both stores so "best day" means the same thing for every game.
@@ -179,9 +189,12 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  *
  * @param {object[]} rows
  * @param {{ tsOf?, scoreOf?, pointsOf?, crownOf? }} spec
- * @returns {{ byWeekday: object[], byMonth: object[] }}
+ * @returns {{ byWeekday: object[], byMonth: object[], overall: object }}
  *   Buckets carry { key, label, plays, crowns, meanScore, meanPoints }.
  *   All seven weekdays are always present; only months with plays appear.
+ *   `overall` is every row in one bucket — the baseline the others are read
+ *   against, computed here so it applies the same exclusions as the buckets
+ *   rather than a caller's approximation of them.
  */
 export function timeBreakdown(rows, spec = {}) {
   const {
@@ -193,14 +206,17 @@ export function timeBreakdown(rows, spec = {}) {
 
   const weekdays = WEEKDAYS.map((label, key) => blank(key, label));
   const months = new Map();
+  const overall = blank("all", "All");
 
   for (const row of rows) {
-    const d = new Date(tsOf(row));
+    const ts = tsOf(row);
+    const d = new Date(ts);
 
     // Date#getDay is Sunday-first; shift so weeks start on Monday, as /graph does.
     add(weekdays[(d.getDay() + 6) % 7], row);
+    add(overall, row);
 
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const key = monthKey(ts);
     let bucket = months.get(key);
     if (!bucket) {
       bucket = blank(
@@ -241,6 +257,7 @@ export function timeBreakdown(rows, spec = {}) {
     byMonth: [...months.values()]
       .sort((a, b) => a.key.localeCompare(b.key))
       .map(finish),
+    overall: finish(overall),
   };
 }
 

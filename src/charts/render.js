@@ -20,12 +20,27 @@ const canvas = new ChartJSNodeCanvas({
 /**
  * Standard title/subtitle/legend block.
  *
- * @param {{ title: string, subtitle?: string, legend?: boolean }} opts
+ * @param {{
+ *   title: string,
+ *   subtitle?: string,
+ *   legend?: boolean,
+ *   legendFilter?: (item: object, data: object) => boolean,
+ * }} opts
+ *   `legendFilter` keeps a dataset off the legend while leaving it on the
+ *   chart — for a mark that is an annotation on another series rather than a
+ *   series of its own.
  */
-export function chrome({ title, subtitle, legend = true }) {
+export function chrome({ title, subtitle, legend = true, legendFilter }) {
   return {
     legend: legend
-      ? { position: "top", labels: { color: TEXT, boxWidth: 14 } }
+      ? {
+          position: "top",
+          labels: {
+            color: TEXT,
+            boxWidth: 14,
+            ...(legendFilter ? { filter: legendFilter } : {}),
+          },
+        }
       : { display: false },
     title: {
       display: true,

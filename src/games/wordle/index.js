@@ -21,6 +21,21 @@ const puzzleNumberFor = makePuzzleNumbering({
   anchorNumber: 0,
 });
 
+/**
+ * How a bucket of results is ranked when picking best and worst periods. One
+ * definition, two readers: `/stats` ranks one player's weekdays and months on
+ * it, `/periods` ranks the whole guild's on the same terms. Fewer guesses is
+ * better, and a loss carries no guess count at all, so this averages the days
+ * that were solved.
+ */
+const PERIOD_METRIC = {
+  by: "meanScore",
+  direction: "lower",
+  label: "avg. guesses",
+  axis: "Average guesses (solved days)",
+  format: (b) => b.meanScore.toFixed(2),
+};
+
 export default {
   id: "wordle",
   label: LABEL,
@@ -159,12 +174,9 @@ export default {
     },
   ],
 
-  /** Shown by /stats unless `detail:false`. Fewer guesses is better. */
-  detailFields: (s) =>
-    bestWorstFields(s, {
-      by: "meanScore",
-      direction: "lower",
-      label: "avg. guesses",
-      format: (b) => b.meanScore.toFixed(2),
-    }),
+  /** Ranks best/worst buckets for /stats and /periods alike. */
+  periodMetric: PERIOD_METRIC,
+
+  /** Shown by /stats unless `detail:false`. */
+  detailFields: (s) => bestWorstFields(s, PERIOD_METRIC),
 };

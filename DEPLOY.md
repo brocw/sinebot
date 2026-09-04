@@ -46,6 +46,73 @@ Migrations run on startup and are one-way. The snapshot is the rollback point.
 
 ---
 
+## One-time: recovering the dropped Wordle days
+
+Only relevant when upgrading a deployment that ran the old header pattern.
+Skip this on a fresh install.
+
+`parseWordleResult` matched `on a (\d+) day streak` and returned `null` for
+anything else — and a `null` there discards the entire message. The upstream
+bot writes whichever article the number reads with, so every day whose group
+streak began 8, 11, 18 or 80–89 was thrown away silently: no error, no log
+line, just a day with no results. In the production database that cost 13 days,
+including ten consecutive ones while the streak ran 80 through 89, which read
+back as a fortnight-long outage that never happened.
+
+The fix is in the parser, but it only applies to messages processed *after* it
+ships. Recovering the lost days needs a re-read of channel history.
+
+### 1. Deploy and confirm the migration ran
+
+```bash
+pm2 logs sinebot --lines 50
+```
+
+Expect `[db] applied migration 5: collapse name keys onto a single-pipe role
+separator`. It rewrites `name_aliases` so the corrected name-key rule still
+finds everyone — without it, an alias stored under a role suffix (`name:jack b
+| sponsor/outreach lead`) stops matching and that player's results strand on a
+fresh unlinked row. The deploy's own snapshot in `data/backups/` is the
+rollback point.
+
+### 2. Re-register commands
+
+`/unlinked` is new, so from a workstation:
+
+```bash
+npm run deploy-commands
+```
+
+### 3. Backfill Wordle
+
+```
+/backfill game:Wordle
+```
+
+Destructive and slow — it deletes the game's results and pages the full channel
+history. One game at a time.
+
+### 4. Claim whatever the backfill surfaces
+
+```
+/unlinked
+```
+
+The recovered messages are old enough to carry name spellings nothing is
+mapped to yet — `@Finn R` where the alias says `name:finn radner`, `@Keanu B`
+where it says `name:keanu b.`. Those arrive as unlinked players holding their
+own crowns. `/unlinked` lists them with a result count and a date range; map
+each one:
+
+```
+/link-user name:Finn R user:@finn
+```
+
+Re-run `/unlinked` until it comes back empty, then sanity-check with `/crowns`
+and `/stats`.
+
+---
+
 ## Server prerequisites
 
 | Requirement | Check | Why |

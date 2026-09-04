@@ -8,6 +8,7 @@ import {
   loadAvatars,
   AVATAR_PADDING,
 } from "../charts/avatarPlugin.js";
+import { trendPanel } from "../charts/trendPanel.js";
 import { linearRegression } from "../utils/stats.js";
 
 /**
@@ -279,7 +280,12 @@ export default {
       if (!fit) continue;
 
       datasets.push({
-        label: `${label} — ${equationOf(fit)}`,
+        // The equation is drawn inside the plot by `trendPanel`, which finds
+        // this dataset by its `equation`; the same field keeps it off the
+        // legend, where the algebra used to live.
+        label,
+        trendName: label,
+        equation: equationOf(fit),
         data: buckets.map((_, x) => fit.slope * x + fit.intercept),
         borderColor: color,
         backgroundColor: color,
@@ -306,16 +312,24 @@ export default {
       notes.push(`no data for ${missing.map((u) => u.username).join(", ")}`);
     }
 
+    const plugins = [
+      ...(avatars ? [avatarPlugin] : []),
+      ...(trend ? [trendPanel] : []),
+    ];
+
     const buffer = await renderChart({
       type: "line",
       data: { labels: buckets.map((b) => b.label), datasets },
-      ...(avatars ? { plugins: [avatarPlugin] } : {}),
+      ...(plugins.length ? { plugins } : {}),
       options: {
         interaction: { mode: "index", intersect: false },
         ...(avatars ? { layout: { padding: { right: AVATAR_PADDING } } } : {}),
         plugins: chrome({
           title: `${game.label} — ${metric.label}; Last ${count} ${periodWord}${count === 1 ? "" : "s"}`,
           subtitle: notes.join(" · ") || undefined,
+          // A trend line is an annotation on the player's line, and shares its
+          // name; two identical legend entries per player would say nothing.
+          legendFilter: (item, data) => !data.datasets[item.datasetIndex]?.equation,
         }),
         scales: {
           x: scale(),
