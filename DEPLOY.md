@@ -36,6 +36,19 @@ Two things are **not** automated and must be done by hand:
    against a single test server, `npm run deploy-commands -- --guild` registers
    to `GUILD_ID` instantly instead.
 
+   **Clean up after `--guild`.** Guild and global registrations are independent
+   sets, and Discord offers a guild both — so every command left in the guild
+   set appears **twice** in that server's picker. Re-running the global deploy
+   does not fix it, because it never touches the guild set. Empty it with:
+
+   ```bash
+   npm run deploy-commands -- --clear-guild
+   ```
+
+   That clears only `GUILD_ID`'s commands and reports how many global ones
+   remain, so you can see you are not left with nothing. It takes effect
+   immediately.
+
 ### Database backups
 
 Each deploy writes a snapshot to `data/backups/` before pulling and keeps the
@@ -216,16 +229,11 @@ independently of the new global ones, so every command appears **twice** in the
 picker until the old set is cleared:
 
 ```bash
-node --input-type=module -e "
-import 'dotenv/config';
-import { REST, Routes } from 'discord.js';
-const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: [] });
-console.log('Cleared guild commands for', process.env.GUILD_ID);
-"
+npm run deploy-commands -- --clear-guild
 ```
 
-Run this *after* `deploy-commands`, so you are never left with no commands.
+Run this *after* `deploy-commands`, so you are never left with no commands —
+the flag prints the surviving global count, and warns if that count is zero.
 
 ### 5. Configure and backfill
 

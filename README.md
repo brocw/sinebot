@@ -86,6 +86,11 @@ Slash commands register **globally** by default, so every server the bot joins
 picks them up (Discord may take up to an hour to propagate). During development,
 `npm run deploy-commands -- --guild` registers to `GUILD_ID` instantly instead.
 
+Guild and global registrations are separate sets and Discord offers a guild
+both, so anything left in the guild set shows up **twice** in that server's
+picker. `npm run deploy-commands -- --clear-guild` empties it; the global set is
+untouched.
+
 See [DEPLOY.md](DEPLOY.md) for server prerequisites, the deploy pipeline, and
 rollback.
 
