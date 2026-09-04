@@ -10,6 +10,22 @@ export const GRID = "rgba(255, 255, 255, 0.08)";
 export const ACCENT = "#f0b232"; // trend lines, fitted curves, annotations
 
 /**
+ * Status colours, for a mark that means "this one is the good/bad one" rather
+ * than "this one is Alice". Never used as series colours — a bar wearing GOOD
+ * has to have earned it.
+ *
+ * The pair is deliberately not the obvious #06D6A0/#FF6B6B: those sit 7.7 apart
+ * under deuteranopia, inside the band where a chart is only legible if
+ * something other than hue also says which is which. These two clear 8.9, and
+ * the charts that use them direct-label the bars as well.
+ */
+export const GOOD = "#3BE8B0";
+export const BAD = "#FF7A85";
+
+/** A mark that is present but not to be read closely — a bucket too thin to rank. */
+export const MUTED = "#7a828e";
+
+/**
  * Categorical series colours, in assignment order.
  *
  * Twenty entries, so a busy server stops repeating colours long after the old

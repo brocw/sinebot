@@ -10,6 +10,7 @@ import {
   normalPdf,
   timeBreakdown,
   bestWorst,
+  monthKey,
 } from "../src/utils/stats.js";
 
 const close = (actual, expected, eps = 1e-9) =>
@@ -201,6 +202,26 @@ test("timeBreakdown excludes losses from the score mean but counts the play", ()
   assert.equal(mon.plays, 2);
   assert.equal(mon.meanScore, 4); // the loss is not averaged in as a zero
   assert.equal(mon.meanPoints, 50); // but it does count as zero points
+});
+
+test("timeBreakdown pools every row into the overall bucket", () => {
+  const { overall } = timeBreakdown([
+    { ts: at(2026, 6, 1), score: 4, points: 100, is_crown: 1 },
+    { ts: at(2026, 7, 2), score: null, points: 0, is_crown: 0 },
+    { ts: at(2026, 8, 3), score: 2, points: 50, is_crown: 0 },
+  ]);
+
+  assert.equal(overall.plays, 3);
+  assert.equal(overall.crowns, 1);
+  assert.equal(overall.meanScore, 3); // the loss carries no score
+  assert.equal(overall.meanPoints, 50); // but does score zero points
+});
+
+test("monthKey matches the keys timeBreakdown sorts months on", () => {
+  const ts = at(2026, 6, 30);
+  const { byMonth } = timeBreakdown([{ ts, score: 3, points: 0, is_crown: 0 }]);
+  assert.equal(monthKey(ts), byMonth[0].key);
+  assert.equal(monthKey(ts), "2026-06");
 });
 
 test("timeBreakdown accepts custom accessors", () => {

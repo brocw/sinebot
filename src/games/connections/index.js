@@ -6,6 +6,21 @@ import { bestWorstFields } from "../../utils/statFields.js";
 
 const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "🟪" };
 
+/**
+ * How a bucket of results is ranked when picking best and worst periods. One
+ * definition, two readers: `/stats` ranks one player's weekdays and months on
+ * it, `/periods` ranks the whole guild's on the same terms. More points is
+ * better, and a loss really does score zero, so every day played is averaged in
+ * — the same rule the headline average score follows.
+ */
+const PERIOD_METRIC = {
+  by: "meanPoints",
+  direction: "higher",
+  label: "avg. score",
+  axis: "Average points per player-day",
+  format: (b) => `${b.meanPoints.toFixed(1)} pts`,
+};
+
 const store = createSelfReportStore("connections", {
   basePoints,
   dailyScore,
@@ -160,12 +175,9 @@ export default {
     },
   ],
 
-  /** Shown by /stats unless `detail:false`. More points is better. */
-  detailFields: (s) =>
-    bestWorstFields(s, {
-      by: "meanPoints",
-      direction: "higher",
-      label: "avg. score",
-      format: (b) => `${b.meanPoints.toFixed(1)} pts`,
-    }),
+  /** Ranks best/worst buckets for /stats and /periods alike. */
+  periodMetric: PERIOD_METRIC,
+
+  /** Shown by /stats unless `detail:false`. */
+  detailFields: (s) => bestWorstFields(s, PERIOD_METRIC),
 };

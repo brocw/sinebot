@@ -15,6 +15,8 @@ built so additional daily games drop in as self-contained modules.
   buckets; head-to-head, top-N, trend lines and avatars
 - **`/distribution`** — bell curve of any tracked metric, with a normal fit
 - **`/correlation`** — group average vs. how many players share the crown
+- **`/periods`** — the whole server's best and worst weekday, or month, charted
+  against its own average
 - **`/backfill`** — rebuilds a game's history from channel history (admin only)
 - **`/link-user`** — maps an unresolved Wordle name to a Discord user (admin only)
 - **`/config`** — everything configurable: which channel each game is tracked in
@@ -36,7 +38,9 @@ sinebot/
     │   ├── theme.js             # dark palette, shared by every chart
     │   ├── render.js            # the one Chart.js canvas
     │   ├── labels.js            # strips what the canvas cannot draw
-    │   └── avatarPlugin.js      # profile pictures on line endpoints
+    │   ├── avatarPlugin.js      # profile pictures on line endpoints
+    │   ├── barLabelPlugin.js    # names the bars a chart is asking about
+    │   └── trendPanel.js        # trend equations, drawn inside the plot
     ├── events/                  # one file per Discord event
     ├── games/
     │   ├── registry.js          # discovers and validates game modules
@@ -53,6 +57,7 @@ sinebot/
     └── utils/
         ├── stats.js             # mean/median/stdev, regression, histograms
         ├── statFields.js        # best/worst embed fields
+        ├── periods.js           # best/worst buckets pooled across the server
         ├── leaderboard.js       # leaderboard formatting
         └── permissions.js       # permission checks
 ```
@@ -151,7 +156,7 @@ summary — its header and crown line are appended automatically when the
 aggregate game posts. An aggregate game may declare it too, but only to name its
 own puzzle; nothing is appended for it.
 
-Three optional fields wire a game into the analytics commands:
+These optional fields wire a game into the analytics commands:
 
 ```js
   // What /distribution can plot. `valueOf` reads a getSeries() row, so no
@@ -165,17 +170,24 @@ Three optional fields wire a game into the analytics commands:
   // What `score` counts, for /correlation's axis label.
   scoreLabel: "hints",
 
+  // How a bucket of results is ranked when picking best and worst periods.
+  // `direction` says which end of the metric is good; `axis` labels a chart.
+  periodMetric: {
+    by: "meanScore",
+    direction: "lower",
+    label: "avg. hints",
+    axis: "Average hints",
+    format: (b) => b.meanScore.toFixed(2),
+  },
+
   // Extra /stats fields, shown unless `detail:false`. bestWorstFields()
-  // renders the store's byWeekday/byMonth buckets; `direction` says which end
-  // of the metric is good.
-  detailFields: (s) =>
-    bestWorstFields(s, {
-      by: "meanScore",
-      direction: "lower",
-      label: "avg. hints",
-      format: (b) => b.meanScore.toFixed(2),
-    }),
+  // renders the store's byWeekday/byMonth buckets against that same metric.
+  detailFields: (s) => bestWorstFields(s, PERIOD_METRIC),
 ```
+
+One `periodMetric`, two readers: `/stats` ranks one player's weekdays and months
+on it, `/periods` ranks the whole server's on the same terms. Declare it once as
+a module constant and hand it to both, as `src/games/wordle/index.js` does.
 
 The other shape is **aggregate**: one upstream bot posts everyone's scores in a
 single message (this is how Wordle works). Those use `createAggregateStore` and
@@ -236,7 +248,7 @@ Running totals over weekly or monthly buckets.
 | `period`, `count` | Bucket size (default: weekly) and how many buckets |
 | `user`, `vs` | Plot one player, or two head to head |
 | `top` | Plot only the leading N |
-| `trend` | Overlay a least-squares fit, labelled with its equation and R² |
+| `trend` | Overlay a least-squares fit per player, with its equation and R² |
 | `avatars` | Profile pictures past each line's last point (default on) |
 
 Only cumulative metrics are offered. The per-bucket ones this used to carry —
@@ -247,10 +259,40 @@ weekly resolution, and the running total is what a leaderboard chart is for.
 timeout and skipped on failure — a chart never fails because a picture didn't
 load.
 
+Trend equations are drawn in a panel inside the plot, top-left, where a chart of
+running totals reliably has empty space. They used to hang off the legend
+entries, which turned a row of names into a wall of algebra that grew with every
+player. The legend now names players; the panel carries the maths, capped at
+half the plot's height with a "+ N more not shown" line under it.
+
 ### `/distribution`
 
 A histogram with the best-fitting normal curve over it, plus n, mean, median
 and σ. Takes a `user` to narrow it from the whole server to one player.
+
+### `/periods`
+
+The server-wide half of the best/worst breakdown `/stats` shows for one player:
+every player's results pooled into weekday or month buckets, ranked on that
+game's own `periodMetric`.
+
+| Option | Effect |
+|---|---|
+| `period` | Day of week or month (default: day of week) |
+| `count` | How many recent months, 2 to 24 (default: 12); ignored for weekdays |
+
+Columns are drawn as the **distance from the server's own average**, not as the
+average itself. Plotted absolutely, the columns are near-flat — a good Wordle
+weekday and a bad one are 3.4 guesses against 4.4 — and the question being asked
+is which way off the usual a period ran, which is what a column measured from
+the average shows directly. Each period's own average and result count sit under
+its column, so the absolute figures are still there.
+
+Colour marks only the two answers: the best column and the worst. Both are also
+labelled on the chart and repeated in the message text, so neither depends on
+telling green from red. A bucket too thin to rank — under 5 results for a
+weekday, under 20 for a month, which keeps a three-day-old month from taking the
+crown off a complete one — is drawn in grey and noted in the subtitle.
 
 ### `/correlation`
 

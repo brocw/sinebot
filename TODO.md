@@ -31,7 +31,8 @@
 
 ## Before this deploy reaches Discord
 
-- `npm run deploy-commands` — command shapes changed and `/settings` was
-  removed; neither propagates until this is run from a workstation.
+- `npm run deploy-commands` — command shapes changed, `/settings` was removed
+  and `/periods` is new; none of it propagates until this is run from a
+  workstation.
 - Check the next daily Wordle post: the header's puzzle number should match the
   word on the line below it.

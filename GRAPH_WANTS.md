@@ -3,8 +3,10 @@
 Status of the original list. ✅ shipped, ⏸️ deferred (with the reason).
 
 1. ✅ **Approx equation of a line plotted for a user's cumulative crowns**
-   `/graph trend:true` fits a least-squares line per plotted player and puts
-   `y = mx + c (R² …)` in the legend. Works on both metrics — and since
+   `/graph trend:true` fits a least-squares line per plotted player and writes
+   `y = mx + c (R² …)` into a panel in the top-left of the plot — an annotation
+   on the lines, not a legend entry, which is what it looked like when the
+   equations were appended to the legend labels. Works on both metrics — and since
    `/graph` now offers only cumulative ones, there are no bar charts left for a
    trend line to hide behind.
 
@@ -18,6 +20,18 @@ Status of the original list. ✅ shipped, ⏸️ deferred (with the reason).
    month, ranked on each game's own measure (fewest guesses for Wordle, most
    points for Connections), ignoring buckets under 3 plays. Shown by default;
    `detail:false` trims back to the headline fields.
+
+   **And for the whole server:** `/periods` charts the same buckets with every
+   player's results pooled — columns drawn as the distance from the server's own
+   average, best and worst named on the chart and in the message. `period:month`
+   swaps weekdays for months. Both readers rank on one `periodMetric` per game,
+   so "best" cannot come to mean two different things in two commands.
+
+   The thresholds are higher than `/stats`'s 3, because a pooled bucket fills
+   from every player at once: 5 results for a weekday, 20 for a month. The month
+   figure is really there to stop the month currently in progress from winning
+   on its first weekend — a bucket below the bar is drawn in grey rather than
+   hidden, with its `n` underneath it.
 
    **Hours are deferred.** Every Wordle row carries the upstream bot's post
    timestamp, so all players on a given day share one `ts` — an hour-of-day
