@@ -41,6 +41,11 @@ export function joinNames(names) {
  *
  * Any self-report game that declares `puzzleNumberFor` gets this for free.
  *
+ * The puzzle is named `#123` unless the game declares `puzzleLabel`, which a
+ * game whose numbering is this bot's own invention uses to show something the
+ * player would recognise instead — Minute Cryptic dates its puzzles rather than
+ * numbering them, so it renders the date.
+ *
  * @param {object} game  registry entry
  * @param {string} guildId
  * @param {Date} date    the day the summary is posted
@@ -58,8 +63,10 @@ export function selfReportSummaryLines(game, guildId, date = new Date()) {
   const points = crowns[0].score;
   const verb = crowns.length === 1 ? "takes" : "share";
 
+  const named = game.puzzleLabel ? game.puzzleLabel(puzzle) : `#${puzzle}`;
+
   return [
-    `${game.emoji} ${game.label} #${puzzle}`,
+    `${game.emoji} ${game.label} ${named}`,
     `👑 ${joinNames(crowns.map((c) => `<@${c.uid}>`))} ${verb} the ${game.label} crown with **${points} points**!`,
   ];
 }

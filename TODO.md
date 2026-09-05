@@ -31,9 +31,13 @@
 
 ## Before this deploy reaches Discord
 
-- `npm run deploy-commands` — command shapes changed, `/settings` was removed
-  and `/periods` and `/unlinked` are new; none of it propagates until this is
-  run from a workstation.
+- `npm run deploy-commands` — command shapes changed, `/settings` was removed,
+  `/periods` and `/unlinked` are new, and Minute Cryptic has to appear in every
+  command's `game` choices; none of it propagates until this is run from a
+  workstation.
+- `/config channel game:Minute Cryptic channel:#…`, then `/backfill game:Minute
+  Cryptic` — the new game tracks nothing until it is pointed at a channel, and
+  the backfill picks up the shares already posted there.
 - `/backfill game:Wordle`, then `/unlinked` — recovers the 13 days the old
   header pattern discarded, and claims the old name spellings they arrive
   under. Full procedure in `DEPLOY.md`.

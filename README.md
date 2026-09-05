@@ -1,7 +1,8 @@
 # SINEBOT
 
-A daily game tracker for Discord. Ships with Wordle and Connections, and is
-built so additional daily games drop in as self-contained modules.
+A daily game tracker for Discord. Ships with Wordle, Connections and Minute
+Cryptic, and is built so additional daily games drop in as self-contained
+modules.
 
 ## Features
 
@@ -48,7 +49,8 @@ sinebot/
     │   ├── registry.js          # discovers and validates game modules
     │   ├── puzzleNumber.js      # daily-puzzle numbering + summary helpers
     │   ├── wordle/              # aggregate game
-    │   └── connections/         # self-report game
+    │   ├── connections/         # self-report game
+    │   └── minute-cryptic/      # self-report game
     ├── data/
     │   ├── db.js                # opens SQLite, runs migrations
     │   ├── migrations.js        # ordered, once-only schema migrations
@@ -163,15 +165,25 @@ summary — its header and crown line are appended automatically when the
 aggregate game posts. An aggregate game may declare it too, but only to name its
 own puzzle; nothing is appended for it.
 
+The store keys dedup and streaks on a number that advances one per calendar day,
+so a game whose share carries only a date has to mint one. Anchor the numbering
+before the game existed, and add `puzzleLabel` so the invented ordinal is never
+shown — the summary names the puzzle with whatever it returns instead of `#123`.
+`src/games/minute-cryptic/puzzle.js` does both.
+
 These optional fields wire a game into the analytics commands:
 
 ```js
   // What /distribution can plot. `valueOf` reads a getSeries() row, so no
   // store change is needed. Use `discrete` + min/max for a small integer range,
-  // or `bins` for a continuous one.
+  // or `bins` for a continuous one; leave a bound off and it follows the data.
+  // A self-report row also carries that game's own decoded `details`, so a
+  // metric can plot something the shared columns don't hold.
   distributionMetrics: [
     { id: "hints", label: "Hints", discrete: true, min: 0, max: 3,
       valueOf: (row) => row.score },
+    { id: "par-delta", label: "Hints vs. par", discrete: true,
+      valueOf: (row) => row.details?.parDelta },
   ],
 
   // What `score` counts, for /correlation's axis label.
@@ -252,6 +264,42 @@ A loss scores 0 and breaks the streak. The crown goes to the highest daily score
 for that puzzle; ties share it. Because results arrive at any time, placement is
 recomputed as new results land — including for later puzzles, since a
 back-filled result extends a streak forward.
+
+### Minute Cryptic
+
+Each player posts their own share. The share carries a date rather than a puzzle
+number — the site publishes none — so the number the store keys on is this bot's
+own, days since 1 January 2022, and is never shown: `/stats`, the result DM and
+the daily summary all name the puzzle by its date.
+
+Hints are the headline metric, but they are not what scores. A raw hint count is
+not comparable between days: a player who took three hints on a puzzle the world
+needed seven for did better than one who took two on a giveaway. Minute Cryptic
+publishes its own difficulty measure — the community par — so points are scored
+on the distance from it:
+
+| Component | Points |
+|---|---|
+| Base | +100 |
+| Per hint under the community par | +12 |
+| Per hint over the community par | −12 |
+| Solved with no hints at all | +20 |
+| Streak bonus | +1 per consecutive day played |
+
+Points floor at 0, and a share posted before the puzzle has a community par
+scores the base alone rather than being dropped. The crown goes to the highest
+daily score; ties share it. Within one day everyone faces the same par, so that
+is the same ranking as fewest hints — the par adjustment only matters once days
+are added together.
+
+There is no losing state: the puzzle feeds out hints until the answer falls, so
+every share is a solve. A **streak** here is therefore consecutive days *played*,
+which is what the game's own streak counts, and a day bad enough to floor the
+score at 0 still extends it. Missing a day is the only thing that breaks it.
+
+`/stats` reports the split that follows from all this: average hints, average
+distance from par, how many days landed under, on and over it, hintless solves,
+and a median solve time over the days whose share carried one.
 
 ## Charts
 

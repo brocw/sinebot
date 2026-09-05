@@ -387,7 +387,10 @@ export function createSelfReportStore(game, spec) {
 
   /**
    * Flat time series for charting: one entry per recorded result, carrying the
-   * full daily score so points-based metrics need no further lookups.
+   * full daily score so points-based metrics need no further lookups, and the
+   * game's own `details` already decoded so a `/distribution` metric can plot
+   * something the shared columns don't hold (Minute Cryptic's distance from
+   * par, say).
    */
   function getSeries(guildId) {
     const out = [];
@@ -402,6 +405,7 @@ export function createSelfReportStore(game, spec) {
           score: r.score,
           isCrown: r.is_crown === 1,
           place: r.place,
+          details: r.details ? JSON.parse(r.details) : {},
           points:
             r.score === null
               ? 0

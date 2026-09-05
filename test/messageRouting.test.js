@@ -42,11 +42,21 @@ function message(content, { authorId = "alice", bot = false, channelId = CHANNEL
 const connectionsPost = (puzzle) =>
   `Connections\nPuzzle #${puzzle}\n${grid(CLEAN_SOLVE)}`;
 
-test("registry discovers both games with the expected kinds", () => {
+const minuteCrypticPost = (date) =>
+  [
+    `Minute Cryptic - ${date}`,
+    '"Ironclad Orc army" (5)',
+    "⚪️🟣🟣🟣🟣🟣🟣🟣",
+    "🏆 1 hints – 1 under the community par (222,375 solvers so far).",
+    "https://www.minutecryptic.com/?utm_source=share",
+  ].join("\n");
+
+test("registry discovers every game with the expected kinds", () => {
   assert.deepEqual(
     GAMES.map((g) => [g.id, g.kind]).sort(),
     [
       ["connections", "self-report"],
+      ["minute-cryptic", "self-report"],
       ["wordle", "aggregate"],
     ],
   );
@@ -71,6 +81,18 @@ test("the same puzzle posted twice is recorded once and DM'd once", async () => 
 
   assert.equal(getGame("connections").store.getStats(GUILD, "alice").games, 2);
   assert.equal(second.sent.dms.length, 0, "no DM for a re-share");
+});
+
+test("a Minute Cryptic post routes to its own game, not Connections", async () => {
+  setChannel(GUILD, "minute-cryptic", CHANNEL);
+  const m = message(minuteCrypticPost("4 September, 2026"));
+  await handler.execute(m);
+
+  // Both self-report games accept any non-bot message, so the only thing
+  // keeping one out of the other's store is its parser returning null.
+  assert.equal(getGame("minute-cryptic").store.getStats(GUILD, "alice").games, 1);
+  assert.equal(getGame("connections").store.getStats(GUILD, "alice").games, 2);
+  assert.match(m.sent.dms[0], /4 September 2026/);
 });
 
 test("a post outside the tracked channel is ignored", async () => {
