@@ -25,7 +25,9 @@ Two things are **not** automated and must be done by hand:
    ```
 
    Expect any pending `[db] applied migration …` lines, then
-   `Logged in as … serving N guild(s), tracking N game(s)`.
+   `SINEBOT v… (<commit>) logged in as … serving N guild(s), tracking N game(s)`.
+   `/ping` reports the same version, so you can confirm from Discord that the
+   new code is live.
 
 3. Slash commands are re-registered globally as the deploy's last step; a
    failure there fails the job, but the bot is already running the new code.
@@ -48,6 +50,25 @@ Two things are **not** automated and must be done by hand:
    That clears only `GUILD_ID`'s commands and reports how many global ones
    remain, so you can see you are not left with nothing. It takes effect
    immediately.
+
+### Versioning
+
+The version is `version` in `package.json` ([semver](https://semver.org)),
+read at startup by `src/version.js` alongside the short commit hash of the
+checkout (`GIT_COMMIT` overrides it where there is no `.git`). The commit
+changes on every deploy by itself; bump the version for releases worth naming:
+
+- **patch** — fixes, parser repairs, wording
+- **minor** — a new game, command or chart, or a migration
+- **major** — reserved for breaking changes to stored data or commands
+
+Bump it in the PR that ships the change, and tag the merge if you want a
+marker in history:
+
+```bash
+npm version minor --no-git-tag-version   # edits package.json + package-lock.json
+git tag v0.3.0 && git push --tags        # optional, after merging
+```
 
 ### Database backups
 
