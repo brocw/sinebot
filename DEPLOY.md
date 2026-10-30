@@ -2,14 +2,15 @@
 
 Deploys are automatic: pushing to `main` runs the test suite, then deploys to the
 DigitalOcean droplet over SSH via `.github/workflows/deploy.yml`. That workflow
-snapshots the database, pulls, installs, and restarts pm2.
+snapshots the database, pulls, installs, restarts pm2, and re-registers the
+global slash commands (`npm run deploy-commands`, using the droplet's `.env`).
+Registration replaces the whole set, so a deleted command disappears from the
+picker on its own, and an unchanged set is a no-op.
 
 Two things are **not** automated and must be done by hand:
 
-- **Registering slash commands** (`npm run deploy-commands`) — run from a
-  workstation, whenever a command's name, description or options change, or one
-  is added or removed. Registration replaces the whole set, so a deleted command
-  disappears from the picker on its own.
+- **Guild-scoped command cleanup** (`npm run deploy-commands -- --clear-guild`)
+  — only after a `--guild` registration; CI only ever touches the global set.
 - **Per-server setup in Discord** (`/config`) — once per guild.
 
 ---
@@ -26,15 +27,14 @@ Two things are **not** automated and must be done by hand:
    Expect any pending `[db] applied migration …` lines, then
    `Logged in as … serving N guild(s), tracking N game(s)`.
 
-3. If you changed a slash command's shape, re-register from your workstation:
+3. Slash commands are re-registered globally as the deploy's last step; a
+   failure there fails the job, but the bot is already running the new code.
+   Global registration can take up to an hour to propagate. To re-register by
+   hand, run `npm run deploy-commands` on the droplet or a workstation.
 
-   ```bash
-   npm run deploy-commands
-   ```
-
-   Global registration can take up to an hour to propagate. For fast iteration
-   against a single test server, `npm run deploy-commands -- --guild` registers
-   to `GUILD_ID` instantly instead.
+   For fast iteration against a single test server,
+   `npm run deploy-commands -- --guild` registers to `GUILD_ID` instantly
+   instead.
 
    **Clean up after `--guild`.** Guild and global registrations are independent
    sets, and Discord offers a guild both — so every command left in the guild
@@ -88,13 +88,9 @@ finds everyone — without it, an alias stored under a role suffix (`name:jack b
 fresh unlinked row. The deploy's own snapshot in `data/backups/` is the
 rollback point.
 
-### 2. Re-register commands
+### 2. Wait for `/unlinked` to appear
 
-`/unlinked` is new, so from a workstation:
-
-```bash
-npm run deploy-commands
-```
+The deploy registers it globally; propagation can take up to an hour.
 
 ### 3. Backfill Wordle
 
@@ -216,15 +212,9 @@ pm2 logs sinebot --lines 50
 
 Expect four `[db] applied migration …` lines.
 
-### 4. Re-register commands, then clear the old guild-scoped ones
+### 4. Clear the old guild-scoped commands
 
-From a workstation:
-
-```bash
-npm run deploy-commands
-```
-
-Commands were previously registered per-guild. Those registrations persist
+The deploy registers the global set. Commands were previously registered per-guild. Those registrations persist
 independently of the new global ones, so every command appears **twice** in the
 picker until the old set is cleared:
 
@@ -232,7 +222,7 @@ picker until the old set is cleared:
 npm run deploy-commands -- --clear-guild
 ```
 
-Run this *after* `deploy-commands`, so you are never left with no commands —
+Run this *after* the deploy has finished, so you are never left with no commands —
 the flag prints the surviving global count, and warns if that count is zero.
 
 ### 5. Configure and backfill
