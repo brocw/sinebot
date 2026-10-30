@@ -67,6 +67,56 @@ test("foldSeries counts each player's days, crowns, medals and points", () => {
   assert.equal(alice.uid, "alice");
 });
 
+// Ranks on crowns and breaks a crown tie on silver, then bronze — Wordle's rule.
+const CROWN_GAME = {
+  leaderboardFilter: (e) => e.crowns > 0,
+  leaderboardRankKey: (e) => e.crowns,
+  leaderboardTiebreak: (e) => [e.silver, e.bronze],
+  leaderboardLine: (rank, e) => `${rank}. ${nameOf(e)}: ${e.crowns}/${e.silver}/${e.bronze}`,
+};
+
+test("a crown tie breaks on silver, then bronze", () => {
+  const entries = standings(
+    [
+      row("alice", 1, { isCrown: true }),
+      row("bob", 2, { isCrown: true }),
+      row("carol", 3, { isCrown: true }),
+      row("dave", 4, { isCrown: true }),
+      row("bob", 5, { place: 2 }),
+      row("carol", 5, { place: 2 }),
+      row("carol", 6, { place: 3 }),
+      row("dave", 6, { place: 3 }),
+    ],
+    CROWN_GAME,
+  );
+
+  assert.deepEqual(rankedLines(entries, CROWN_GAME), [
+    "1. <@carol>: 1/1/1",
+    "2. <@bob>: 1/1/0",
+    "3. <@dave>: 1/0/1",
+    "4. <@alice>: 1/0/0",
+  ]);
+
+  const { champions: winners, runnerUp, gap } = champions(entries, CROWN_GAME);
+  assert.deepEqual(winners.map((e) => e.playerKey), ["carol"]);
+  assert.equal(runnerUp.playerKey, "bob");
+  assert.equal(gap, 0, "won on the tiebreak, not the measure");
+});
+
+test("players level on crowns and every tiebreak share a rank", () => {
+  const entries = standings(
+    [
+      row("alice", 1, { isCrown: true }),
+      row("bob", 2, { isCrown: true }),
+      row("alice", 3, { place: 2 }),
+      row("bob", 4, { place: 2 }),
+    ],
+    CROWN_GAME,
+  );
+  assert.deepEqual(rankedLines(entries, CROWN_GAME), ["1. <@alice>: 1/1/0", "1. <@bob>: 1/1/0"]);
+  assert.equal(champions(entries, CROWN_GAME).champions.length, 2);
+});
+
 test("standings rank on the game's own measure", () => {
   const entries = standings(
     [row("alice", 1, { points: 100 }), row("bob", 1, { points: 300 })],

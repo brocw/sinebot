@@ -190,3 +190,24 @@ test("a name linked under one suffix resolves under the other", () => {
   assert.equal(store.getStats(g, "finn-uid").games, 2);
   assert.equal(streakOf(g, "finn-uid"), 2, "a role change must not reset a streak");
 });
+
+// --- ranking ---------------------------------------------------------------
+
+test("players level on crowns rank by silver, then bronze", () => {
+  const g = newGuild();
+  // Each of a, b and c takes one crown.
+  post(g, 1, [[2, "a"], [3, "b"], [4, "c"]]);
+  post(g, 2, [[2, "b"], [3, "c"], [4, "a"]]);
+  post(g, 3, [[2, "c"], [3, "a"], [4, "b"]]);
+  // b and c pull ahead on silver; c on bronze too.
+  post(g, 4, [[1, "d"], [2, "b"], [3, "c"]]);
+  post(g, 5, [[1, "d"], [2, "c"], [3, "b"]]);
+  post(g, 6, [[1, "d"], [2, "c"], [3, "a"]]);
+
+  const board = store.getLeaderboard(g).map((e) => e.playerKey);
+  assert.deepEqual(board, ["d", "c", "b", "a"]);
+
+  assert.equal(store.getStats(g, "c").rank, 2);
+  assert.equal(store.getStats(g, "b").rank, 3);
+  assert.equal(store.getStats(g, "a").rank, 4);
+});

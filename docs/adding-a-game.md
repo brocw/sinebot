@@ -39,6 +39,9 @@ export default {
   leaderboardFilter: (e) => e.games > 0,
   leaderboardEmpty: "No Strands results recorded yet.",
   leaderboardRankKey: (e) => e.totalPoints,
+  // Optional: numbers that order players level on the rank key, most
+  // significant first. Wordle declares [e.silver, e.bronze].
+  // leaderboardTiebreak: (e) => [e.crowns],
   leaderboardLine: (rank, e) => `${rank}. <@${e.uid}>: 🏅 ${e.totalPoints}`,
   leaderboardSummary: (entries) => ({
     name: "🏅 Total",

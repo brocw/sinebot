@@ -38,20 +38,41 @@ export function placeLabel(n) {
 }
 
 /**
+ * Everything an entry is ranked on, most significant first: the game's
+ * `leaderboardRankKey`, then whatever `leaderboardTiebreak` it declares (Wordle
+ * breaks a crown tie on 🥈 then 🥉).
+ */
+function rankTuple(game, e) {
+  return [game.leaderboardRankKey(e), ...(game.leaderboardTiebreak?.(e) ?? [])];
+}
+
+/** Sort comparator, best first, for a game's leaderboard entries. */
+export function byRank(game) {
+  return (a, b) => {
+    const ta = rankTuple(game, a);
+    const tb = rankTuple(game, b);
+    for (let i = 0; i < ta.length; i++) {
+      if (ta[i] !== tb[i]) return tb[i] - ta[i];
+    }
+    return 0;
+  };
+}
+
+/** Whether two entries share a rank — level on the key and every tiebreak. */
+export function sameRank(game, a, b) {
+  return byRank(game)(a, b) === 0;
+}
+
+/**
  * Numbers leaderboard entries with ties sharing a rank, using each game's
- * declared ranking key.
+ * declared ranking key and tiebreaks.
  *
  * @returns {string[]} rendered lines
  */
 export function rankedLines(entries, game) {
   let rank = 0;
-  let prev = null;
   return entries.map((e, i) => {
-    const key = game.leaderboardRankKey(e);
-    if (key !== prev) {
-      rank = i + 1;
-      prev = key;
-    }
+    if (i === 0 || !sameRank(game, entries[i - 1], e)) rank = i + 1;
     return game.leaderboardLine(rank, e);
   });
 }

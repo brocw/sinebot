@@ -1,5 +1,6 @@
 import { timeBreakdown } from "./stats.js";
 import { etDayKey } from "./semesters.js";
+import { byRank, sameRank } from "./leaderboard.js";
 
 // Leaderboards over a window of time, folded out of `store.getSeries()` rows.
 //
@@ -62,7 +63,7 @@ export function foldSeries(rows) {
 export function standings(rows, game) {
   return foldSeries(rows)
     .filter(game.leaderboardFilter)
-    .sort((a, b) => game.leaderboardRankKey(b) - game.leaderboardRankKey(a));
+    .sort(byRank(game));
 }
 
 /** How a player is named in prose, as `leaderboardLine` names them in a list. */
@@ -73,9 +74,10 @@ export function nameOf(entry) {
 /**
  * The champion(s) and how decisively they won.
  *
- * Everyone tied on the top measure is a champion, the way tied crowns already
- * share a day. `gap` is the distance to the best score that isn't theirs, and
- * is null when nobody else is on the board.
+ * Everyone tied on the top measure and every tiebreak is a champion, the way
+ * tied crowns already share a day. `gap` is the distance on the rank key to the
+ * best entry that isn't theirs — zero when they won it on a tiebreak — and is
+ * null when nobody else is on the board.
  *
  * @returns {{ champions: object[], gap: number|null, runnerUp: object|null }}
  */
@@ -83,14 +85,14 @@ export function champions(entries, game) {
   if (entries.length === 0) return { champions: [], gap: null, runnerUp: null };
 
   const key = (e) => game.leaderboardRankKey(e);
-  const top = key(entries[0]);
-  const winners = entries.filter((e) => key(e) === top);
-  const runnerUp = entries.find((e) => key(e) !== top) ?? null;
+  const top = entries[0];
+  const winners = entries.filter((e) => sameRank(game, e, top));
+  const runnerUp = entries.find((e) => !sameRank(game, e, top)) ?? null;
 
   return {
     champions: winners,
     runnerUp,
-    gap: runnerUp ? top - key(runnerUp) : null,
+    gap: runnerUp ? key(top) - key(runnerUp) : null,
   };
 }
 
@@ -115,7 +117,6 @@ function byDay(rows) {
  * @returns {{ changes: number, leader: string|null }}
  */
 export function leadChanges(rows, game) {
-  const key = (e) => game.leaderboardRankKey(e);
   const seen = [];
   let leader = null;
   let changes = 0;
@@ -125,8 +126,9 @@ export function leadChanges(rows, game) {
     const entries = standings(seen, game);
     if (entries.length === 0) continue;
 
-    const top = key(entries[0]);
-    const tied = entries.filter((e) => key(e) === top).map((e) => e.playerKey);
+    const tied = entries
+      .filter((e) => sameRank(game, e, entries[0]))
+      .map((e) => e.playerKey);
 
     if (leader === null) leader = tied[0];
     else if (!tied.includes(leader)) {

@@ -46,5 +46,6 @@ There is no linter or build step. Pushing to `main` runs tests in CI and auto-de
 ## Project notes
 
 - The running version (`package.json` `version` + short commit, via `src/version.js`) is shown by `/ping` and the startup log; bump rules are in `DEPLOY.md` → Versioning.
+- **Bump the version as part of any user-visible change, without being asked**: patch for fixes, wording and behaviour tweaks (e.g. leaderboard ordering); minor for a new game, command, chart or migration; major only for breaking changes to stored data or commands. Use `npm version <patch|minor|major> --no-git-tag-version` so `package-lock.json` stays in step. Bump once per branch/PR — compare against `main` (`git diff main -- package.json`) and don't bump again if the branch already has; raise it to minor if a later change warrants it. Docs-, test- or CI-only changes need no bump.
 - `TODO.md` tracks open work and pending manual deploy steps; `docs/GRAPH_WANTS.md` records the status and reasoning behind chart/stat features (e.g. why hour-of-day is deferred, the open question on `/correlation`).
 - Parser regressions have silently dropped whole days before (Wordle's `on an? (\d+) day streak` article bug) — a parser returning `null` discards the entire message with no log, so be conservative when tightening patterns.

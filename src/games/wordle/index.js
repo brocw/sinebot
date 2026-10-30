@@ -123,6 +123,8 @@ export default {
     return `${rank}. ${display}: 👑 ${e.crowns}  🥈 ${e.silver}  🥉 ${e.bronze}`;
   },
   leaderboardRankKey: (e) => e.crowns,
+  // Level on crowns, more 🥈 ranks higher, then more 🥉.
+  leaderboardTiebreak: (e) => [e.silver, e.bronze],
   leaderboardSummary(entries) {
     const sum = (f) => entries.reduce((a, e) => a + f(e), 0);
     return {
