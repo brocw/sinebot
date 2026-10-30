@@ -34,39 +34,3 @@ export function joinNames(names) {
   if (names.length === 1) return names[0];
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
-
-/**
- * Daily summary lines for a self-report game: who took yesterday's crown.
- * Returns [] when nobody solved it, so callers can spread the result freely.
- *
- * Any self-report game that declares `puzzleNumberFor` gets this for free.
- *
- * The puzzle is named `#123` unless the game declares `puzzleLabel`, which a
- * game whose numbering is this bot's own invention uses to show something the
- * player would recognise instead — Minute Cryptic dates its puzzles rather than
- * numbering them, so it renders the date.
- *
- * @param {object} game  registry entry
- * @param {string} guildId
- * @param {Date} date    the day the summary is posted
- * @returns {string[]}
- */
-export function selfReportSummaryLines(game, guildId, date = new Date()) {
-  if (!game.puzzleNumberFor) return [];
-
-  const puzzle = String(game.puzzleNumberFor(date) - 1);
-  const { crowns } = game.store.getPuzzleCrowns(guildId, puzzle);
-  if (crowns.length === 0) return [];
-
-  // Every crown winner is tied on the top daily score, so any one of them
-  // carries the number to report.
-  const points = crowns[0].score;
-  const verb = crowns.length === 1 ? "takes" : "share";
-
-  const named = game.puzzleLabel ? game.puzzleLabel(puzzle) : `#${puzzle}`;
-
-  return [
-    `${game.emoji} ${game.label} ${named}`,
-    `👑 ${joinNames(crowns.map((c) => `<@${c.uid}>`))} ${verb} the ${game.label} crown with **${points} points**!`,
-  ];
-}
