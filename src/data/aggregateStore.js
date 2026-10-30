@@ -269,7 +269,7 @@ export function createAggregateStore(game) {
     });
   }
 
-  /** Crown leaderboard, most crowns first. */
+  /** Crown leaderboard, most crowns first, ties broken on 🥈 then 🥉. */
   function getLeaderboard(guildId) {
     const out = [];
     for (const entry of byPlayer(guildId, game).values()) {
@@ -286,7 +286,7 @@ export function createAggregateStore(game) {
         wins: entry.rows.filter((r) => r.score !== null).length,
       });
     }
-    out.sort((a, b) => b.crowns - a.crowns);
+    out.sort((a, b) => b.crowns - a.crowns || b.silver - a.silver || b.bronze - a.bronze);
     return out;
   }
 
@@ -301,11 +301,21 @@ export function createAggregateStore(game) {
     const solvedScores = rows.filter((r) => r.score !== null).map((r) => r.score);
 
     // Rank among players who have at least one crown, so "#3 of 12" counts
-    // contenders rather than everyone who ever played.
-    const crownCounts = [...players.values()]
-      .map((e) => e.rows.filter((r) => r.is_crown === 1).length)
-      .filter((n) => n > 0)
-      .sort((a, b) => b - a);
+    // contenders rather than everyone who ever played. Ties on crowns break on
+    // 🥈 then 🥉, the same order the leaderboard uses.
+    const medals = (rs) => [
+      rs.filter((r) => r.is_crown === 1).length,
+      rs.filter((r) => r.place === 2).length,
+      rs.filter((r) => r.place === 3).length,
+    ];
+    const mine = medals(rows);
+    const ahead = (m) => {
+      for (let i = 0; i < m.length; i++) if (m[i] !== mine[i]) return m[i] > mine[i];
+      return false;
+    };
+    const contenders = [...players.values()]
+      .map((e) => medals(e.rows))
+      .filter(([c]) => c > 0);
 
     const placeCounts = {};
     for (const r of rows) {
@@ -318,8 +328,8 @@ export function createAggregateStore(game) {
 
     return {
       crowns,
-      rank: crownCounts.filter((n) => n > crowns).length + 1,
-      contenders: crownCounts.length,
+      rank: contenders.filter(ahead).length + 1,
+      contenders: contenders.length,
       games: rows.length,
       wins: solvedScores.length,
       failures: rows.length - solvedScores.length,

@@ -33,13 +33,14 @@ running into a semester still pays, because the player did earn it that day.
 
 With no `game`, one line per registered game: that game's champion, on that
 game's own measure — points for Connections and Minute Cryptic, crowns for
-Wordle. Every player tied on top is a champion, the way tied crowns already
-share a day.
+Wordle, with a crown tie broken on 🥈 and then 🥉 as on `/crowns`. Every
+player still tied on top is a champion, the way tied crowns already share a day.
 
 With a `game`, that game's semester in full — champion, standings, and three
 figures that only make sense inside a bounded window:
 
-- **Margin** — the gap to the best score that isn't the champion's, and how
+- **Margin** — the gap to the best score that isn't the champion's (or "ahead
+  on the tiebreak" when they were level on the measure itself), and how
   often the lead changed hands. A tie that still includes the standing leader is
   not a change: they haven't lost it.
 - **Turnout** — days played over days *anybody* played. The denominator is not

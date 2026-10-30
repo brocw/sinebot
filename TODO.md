@@ -25,7 +25,7 @@
 
 - **Explain / overhaul the correlation graph — possibly remove.** Explained; the
   command is untouched for now. The four reasons the chart doesn't measure what
-  it looks like it measures are written up under item 8 of `GRAPH_WANTS.md`.
+  it looks like it measures are written up under item 8 of `docs/GRAPH_WANTS.md`.
   Decide there whether to fix the method (crown *share* instead of a raw count,
   failures scored as 7, Spearman instead of Pearson) or drop the command.
 

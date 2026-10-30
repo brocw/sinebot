@@ -133,12 +133,15 @@ function gameEmbed(game, guildId, semester) {
   const { champions: winners, runnerUp, gap } = champions(entries, game);
   const { changes } = leadChanges(rows, game);
 
-  // `runnerUp` is the best score that isn't the champions', so the gap is
-  // never zero — a tie at the top makes both of them champions instead.
+  // A full tie at the top makes everyone in it a champion, so `runnerUp` is
+  // always ranked below them. The gap is zero only when they were level on the
+  // rank key and the game's tiebreak split them (Wordle on 🥈, then 🥉).
   const margin =
     runnerUp === null
       ? "Uncontested — nobody else made the board."
-      : `**+${gap.toLocaleString("en-US")}** clear of ${nameOf(runnerUp)}.`;
+      : gap === 0
+        ? `Level with ${nameOf(runnerUp)}, and ahead on the tiebreak.`
+        : `**+${gap.toLocaleString("en-US")}** clear of ${nameOf(runnerUp)}.`;
 
   embed.addFields({
     name: winners.length === 1 ? "🏆 Champion" : "🏆 Co-champions",
