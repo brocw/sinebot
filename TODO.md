@@ -23,6 +23,14 @@
 
 ## Open
 
+- **DM functionality, PRs 2–3.** Read-only commands now work in DMs (PR 1).
+  Next: split `/dm` out of `/config` — `/config` is guild-only now, so until then
+  DM preferences are set from a server or by replying `stop`/`resume` in a DM —
+  plus a home-server preference (new migration) that `resolveGuild` consults
+  before prompting, and `help`/`stats`/`status` text replies in DMs. Then
+  extract `/graph`'s body into a reusable `buildGraph` and add graph buttons to
+  result DMs. A weekly digest DM is deferred until the bot has a scheduler.
+
 - **Explain / overhaul the correlation graph — possibly remove.** Explained; the
   command is untouched for now. The four reasons the chart doesn't measure what
   it looks like it measures are written up under item 8 of `docs/GRAPH_WANTS.md`.

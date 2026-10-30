@@ -44,6 +44,7 @@ sinebot/
         ├── semesters.js         # the academic calendar, as windows over results
         ├── standings.js         # leaderboards folded over a window of time
         ├── leaderboard.js       # leaderboard formatting
+        ├── guildContext.js      # which server a command reads, in a server or a DM
         └── permissions.js       # permission checks
 ```
 

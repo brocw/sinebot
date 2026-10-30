@@ -9,6 +9,7 @@ import {
 import { gameOption, gameFrom } from "../games/registry.js";
 import { trackedChannel } from "../data/guildConfigStore.js";
 import { requireAdmin } from "../utils/permissions.js";
+import { GUILD_ONLY } from "../utils/guildContext.js";
 
 /**
  * Pages through a channel's full history, oldest-first, collecting whatever
@@ -44,6 +45,7 @@ async function scanChannel(channel, collect) {
 export default {
   data: new SlashCommandBuilder()
     .setName("backfill")
+    .setContexts(...GUILD_ONLY)
     .setDescription(
       "Scan channel history and rebuild the score database from past results",
     )

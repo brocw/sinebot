@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { gameOption, gameFrom } from "../games/registry.js";
 import { renderChart, chrome } from "../charts/render.js";
+import { GUILD_AND_DM, serverOption, resolveGuild } from "../utils/guildContext.js";
 import {
   seriesColor,
   scale,
@@ -37,6 +38,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName("periods")
     .setDescription("Chart the server's best and worst days of the week, or months")
+    .setContexts(...GUILD_AND_DM)
     .addStringOption((opt) =>
       opt
         .setName("period")
@@ -53,10 +55,14 @@ export default {
         .setMinValue(2)
         .setMaxValue(24),
     )
-    .addStringOption(gameOption),
+    .addStringOption(gameOption)
+    .addStringOption(serverOption),
 
   async execute(interaction) {
     await interaction.deferReply();
+
+    const context = await resolveGuild(interaction);
+    if (!context) return;
 
     const game = gameFrom(interaction);
     const metric = game.periodMetric;
@@ -74,7 +80,7 @@ export default {
       return;
     }
 
-    const series = game.store.getSeries(interaction.guildId);
+    const series = game.store.getSeries(context.guildId);
     const { buckets, overall, best, worst, thin } = guildPeriods(series, {
       grouping,
       count,

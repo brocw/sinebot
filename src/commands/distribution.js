@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { GAMES, gameOption, gameFrom } from "../games/registry.js";
 import { renderChart, chrome } from "../charts/render.js";
+import { GUILD_AND_DM, serverOption, resolveGuild } from "../utils/guildContext.js";
 import { seriesColor, scale, ACCENT } from "../charts/theme.js";
 import { chartLabel } from "../charts/labels.js";
 import { mean, median, stdev, histogram, normalPdf } from "../utils/stats.js";
@@ -40,6 +41,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName("distribution")
     .setDescription("Bell curve: how often each result comes up, against a normal fit")
+    .setContexts(...GUILD_AND_DM)
     .addStringOption((opt) =>
       opt
         .setName("metric")
@@ -51,10 +53,14 @@ export default {
         .setName("user")
         .setDescription("Just this player (default: the whole server)"),
     )
-    .addStringOption(gameOption),
+    .addStringOption(gameOption)
+    .addStringOption(serverOption),
 
   async execute(interaction) {
     await interaction.deferReply();
+
+    const context = await resolveGuild(interaction);
+    if (!context) return;
 
     const game = gameFrom(interaction);
     const available = game.distributionMetrics ?? [];
@@ -84,7 +90,7 @@ export default {
     const user = interaction.options.getUser("user");
 
     const values = [];
-    for (const row of game.store.getSeries(interaction.guildId)) {
+    for (const row of game.store.getSeries(context.guildId)) {
       if (user && row.playerKey !== user.id) continue;
       const value = metric.valueOf(row);
       // A loss carries no score; it is an absent result, not a zero.

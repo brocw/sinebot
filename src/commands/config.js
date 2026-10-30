@@ -12,6 +12,7 @@ import {
   allPrefs,
 } from "../data/userPrefsStore.js";
 import { requireAdmin } from "../utils/permissions.js";
+import { GUILD_ONLY } from "../utils/guildContext.js";
 
 // One command for everything configurable: what the server tracks, and what the
 // caller personally hears back about it. Splitting those across /config and
@@ -27,6 +28,7 @@ const ALL_GAMES = "all";
 export default {
   data: new SlashCommandBuilder()
     .setName("config")
+    .setContexts(...GUILD_ONLY)
     .setDescription("Configure what SINEBOT tracks here, and your own DM preferences")
     .addSubcommand((sub) =>
       sub

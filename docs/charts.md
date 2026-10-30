@@ -10,6 +10,12 @@ bound for a canvas therefore passes through `chartLabel` in
 `src/charts/labels.js`, which strips emoji and falls back to the username when a
 name is nothing else.
 
+Every chart command also works in a DM with the bot, reading the results of the
+server named by its `server` option — or, when the caller shares only one server
+with the bot, that one. Membership is checked each time; see
+`src/utils/guildContext.js`. A `/graph` drawn from a DM carries its server's name
+in the subtitle, since nothing else around it says where it came from.
+
 ## `/graph`
 
 Running totals over weekly or monthly buckets.
@@ -22,6 +28,7 @@ Running totals over weekly or monthly buckets.
 | `top` | Plot only the leading N |
 | `trend` | Overlay a least-squares fit per player, with its equation and R² |
 | `avatars` | Profile pictures past each line's last point (default on) |
+| `private` | Reply only to the caller rather than the channel (default off) |
 
 Only cumulative metrics are offered. The per-bucket ones this used to carry —
 crowns and points on their own, days played, average score — read as noise at
