@@ -1,9 +1,10 @@
 import { SlashCommandBuilder } from "discord.js";
+import { versionString } from "../version.js";
 
 export default {
   data: new SlashCommandBuilder()
     .setName("ping")
-    .setDescription("Replies with Pong and current latency"),
+    .setDescription("Replies with Pong, current latency and the running version"),
 
   async execute(interaction) {
     const sent = await interaction.reply({
@@ -13,7 +14,7 @@ export default {
     const latency =
       sent.resource.message.createdTimestamp - interaction.createdTimestamp;
     await interaction.editReply(
-      `Pong! Latency: ${latency}ms | API: ${interaction.client.ws.ping}ms`,
+      `Pong! Latency: ${latency}ms | API: ${interaction.client.ws.ping}ms | SINEBOT ${versionString()}`,
     );
   },
 };
