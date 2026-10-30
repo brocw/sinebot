@@ -42,3 +42,10 @@ jobs:
             npm ci --omit=dev
             pm2 restart sinebot || pm2 start npm --name sinebot -- start
             pm2 save
+
+            # Register slash commands globally from the droplet's own .env.
+            # A bulk overwrite, so it is idempotent: unchanged commands stay as
+            # they are, and removed ones drop out of the picker. Runs after the
+            # restart so the bot has already applied any pending migrations.
+            # Never --guild here; that set is for workstation development.
+            npm run deploy-commands
