@@ -93,5 +93,6 @@ Uses the built-in `node:test` runner; there are no test dependencies. See
 | [docs/scoring.md](docs/scoring.md) | How Wordle, Connections and Minute Cryptic are scored, crowned and streaked |
 | [docs/semesters.md](docs/semesters.md) | The academic calendar and `/semester` |
 | [docs/charts.md](docs/charts.md) | `/graph`, `/distribution`, `/periods`, `/correlation` |
+| [docs/GRAPH_WANTS.md](docs/GRAPH_WANTS.md) | Status and reasoning behind requested chart and stat features |
 | [docs/testing.md](docs/testing.md) | What the test suites cover |
 | [DEPLOY.md](DEPLOY.md) | Server prerequisites, deploy pipeline, rollback |
