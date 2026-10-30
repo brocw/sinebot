@@ -3,6 +3,7 @@ import { parseConnectionsResult } from "./parser.js";
 import { basePoints, dailyScore } from "./score.js";
 import { puzzleNumberForET } from "./summary.js";
 import { bestWorstFields } from "../../utils/statFields.js";
+import { mean } from "../../utils/stats.js";
 
 const COLOUR_EMOJI = { yellow: "🟨", green: "🟩", blue: "🟦", purple: "🟪" };
 
@@ -92,6 +93,26 @@ export default {
 
     lines.push("", "-# To cancel DMs, please reply '*stop*'.");
     return lines.join("\n");
+  },
+
+  /**
+   * Connections' part of the daily summary: the day's average — every player
+   * counted, a loss at its real 0, as PERIOD_METRIC does — and the specials.
+   */
+  daily({ rows }) {
+    const count = (f) => rows.filter((r) => r.score !== null && f(r)).length;
+    const perfect = count((r) => r.score === 0);
+    const purple = count((r) => r.details?.purpleFirst);
+    const rainbow = count((r) => r.details?.reverseRainbow);
+
+    return {
+      stats: [
+        `avg ${Math.round(mean(rows.map((r) => r.points)))} pts`,
+        ...(perfect ? [`🎯 ${perfect} perfect`] : []),
+        ...(purple ? [`🟪 ${purple} purple first`] : []),
+        ...(rainbow ? [`🌈 ${rainbow} reverse rainbow`] : []),
+      ],
+    };
   },
 
   /** What this game's `score` counts, for axis labels. */

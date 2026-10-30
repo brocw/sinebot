@@ -4,6 +4,8 @@ import { basePoints, dailyScore } from "./score.js";
 import { puzzleNumberForET, formatPuzzleDate } from "./puzzle.js";
 import { bestWorstFields } from "../../utils/statFields.js";
 import { mean, median } from "../../utils/stats.js";
+import { nameOf } from "../../utils/standings.js";
+import { escapeMarkdown } from "discord.js";
 
 /** "1 hint", "0 hints". */
 function hintCount(n) {
@@ -153,6 +155,40 @@ export default {
 
     lines.push("", "-# To cancel DMs, please reply '*stop*'.");
     return lines.join("\n");
+  },
+
+  /**
+   * Minute Cryptic's part of the daily summary: the clue, the community par,
+   * how the group fared against it and the fastest solve.
+   *
+   * The par drifts as more people solve, so it is read off the latest share.
+   */
+  daily({ rows }) {
+    const latest = [...rows].sort((a, b) => b.ts - a.ts);
+    const clued = latest.find((r) => r.details?.clue);
+    const par = latest.find((r) => typeof r.details?.par === "number")?.details.par;
+
+    const intro = [];
+    if (clued) {
+      const { clue, enumeration } = clued.details;
+      intro.push(`🧩 *"${escapeMarkdown(clue)}"*${enumeration ? ` (${enumeration})` : ""}`);
+    }
+
+    const deltas = rows.map((r) => r.details?.parDelta).filter((d) => typeof d === "number");
+    const timed = rows.filter((r) => typeof r.details?.seconds === "number");
+    const fastest = timed.sort((a, b) => a.details.seconds - b.details.seconds)[0];
+
+    const stats = [`avg ${mean(rows.map((r) => r.score)).toFixed(1)} hints`];
+    if (par !== undefined) stats.push(`par ${par}`);
+    if (deltas.length) {
+      const n = (f) => deltas.filter(f).length;
+      stats.push(`🏆 ${n((d) => d > 0)}  🤝 ${n((d) => d === 0)}  🏋 ${n((d) => d < 0)}`);
+    }
+    if (fastest) {
+      stats.push(`⏱️ ${duration(fastest.details.seconds)} fastest (${nameOf(fastest)})`);
+    }
+
+    return { intro, stats };
   },
 
   /** What this game's `score` counts, for axis labels. */

@@ -1,9 +1,10 @@
-import { createAggregateStore, displayFromRaw } from "../../data/aggregateStore.js";
+import { createAggregateStore } from "../../data/aggregateStore.js";
 import { WORDLE_BOT_ID, parseWordleResult } from "./parser.js";
 import { fetchDailyWord, assessCommonality } from "./daily.js";
-import { joinNames, makePuzzleNumbering } from "../puzzleNumber.js";
+import { makePuzzleNumbering } from "../puzzleNumber.js";
 import { placeLabel } from "../../utils/leaderboard.js";
 import { bestWorstFields } from "../../utils/statFields.js";
+import { mean } from "../../utils/stats.js";
 
 const store = createAggregateStore("wordle");
 
@@ -57,42 +58,31 @@ export default {
   puzzleNumberFor,
 
   /**
-   * The Wordle bot's post is the day's anchor event, so this game announces:
-   * yesterday's word plus who took the crown. Other games append their own
-   * summary lines to the same message.
+   * Wordle's part of the daily summary, beyond the podium every game gets:
+   * yesterday's word, the day's average and the group streak the upstream bot
+   * reports. The Wordle bot's post is what triggers the summary at all.
    *
-   * @returns {Promise<string[]>}
+   * @returns {Promise<{ intro: string[], stats: string[] }>}
    */
-  async announce({ message, parsed }) {
-    const crownEntry = parsed.scores.find((s) => s.isCrown);
-    if (!crownEntry) return [];
-
-    // The bot posts the morning after, so its results — and the word below —
-    // are yesterday's. The same `- 1` every self-report summary applies.
-    const puzzle = puzzleNumberFor(message.createdAt) - 1;
-    const lines = [`${EMOJI} ${LABEL} #${puzzle}`];
-
-    const yesterday = new Date(message.createdAt);
-    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    const word = await fetchDailyWord(yesterday);
+  async daily({ rows, parsed, date }) {
+    const intro = [];
+    // The bot posts the morning after, so the word wanted is yesterday's.
+    const word = await fetchDailyWord(new Date(date.getTime() - 86_400_000));
     if (word) {
       const commonality = await assessCommonality(word);
-      lines.push(
-        commonality
-          ? `📖 Yesterday's word: **${word}**, ${commonality}.`
-          : `📖 Yesterday's word: **${word}**.`,
-      );
+      intro.push(commonality ? `📖 **${word}**, ${commonality}.` : `📖 **${word}**`);
     }
 
-    const scoreStr = crownEntry.score !== null ? `${crownEntry.score}/6` : "X/6";
-    const names = crownEntry.users.map((u) =>
-      u.type === "id" ? `<@${u.id}>` : displayFromRaw(u.raw, ""),
-    );
-    const verb = crownEntry.users.length === 1 ? "takes" : "share";
-    lines.push(`👑 ${joinNames(names)} ${verb} the ${LABEL} crown with **${scoreStr}**!`);
+    const solved = rows.filter((r) => r.score !== null).map((r) => r.score);
+    const stats = [];
+    if (solved.length) stats.push(`avg ${mean(solved).toFixed(2)}`);
+    if (parsed?.streak) stats.push(`🔥 ${parsed.streak}-day group streak`);
 
-    return lines;
+    return { intro, stats };
   },
+
+  /** How a day's result reads on the summary podium. */
+  resultLabel: (row) => `${row.score}/6`,
 
   /** What this game's `score` counts, for axis labels. */
   scoreLabel: "guesses",

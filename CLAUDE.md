@@ -24,9 +24,9 @@ There is no linter or build step. Pushing to `main` runs tests in CI and auto-de
 
 **Two game kinds**, each with a shared store factory in `src/data/`:
 - `self-report` (Connections, Minute Cryptic): each player posts their own result. `createSelfReportStore(id, { basePoints, dailyScore, scoreOf, detailsOf })` handles dedup, placement, crowns, streaks, leaderboards and stats. Placement is recomputed as late/backfilled results arrive, including for later puzzles (streaks extend forward). Game supplies `parse` + `formatDm`.
-- `aggregate` (Wordle): an upstream bot posts everyone's scores in one message. Uses `createAggregateStore` and an `announce()` method. Unresolved players are stored under a normalised name key until `/link-user` maps them.
+- `aggregate` (Wordle): an upstream bot posts everyone's scores in one message. Uses `createAggregateStore`; its upstream message triggers the daily summary. Unresolved players are stored under a normalised name key until `/link-user` maps them.
 
-**Message flow** (`src/events/messageCreate.js`): for each game, `wantsMessage` → channel matches `trackedChannel(guild, game)` → `parse`; first game to parse claims the message. When the aggregate game fires, it posts a combined daily summary that appends a crown line for every self-report game declaring `puzzleNumberFor`.
+**Message flow** (`src/events/messageCreate.js`): for each game, `wantsMessage` → channel matches `trackedChannel(guild, game)` → `parse`; first game to parse claims the message. When the aggregate game fires, it posts a combined daily summary (`src/summary/`) as a silent Components V2 message: a card per game (the aggregate game plus every tracked self-report game declaring `puzzleNumberFor`), a gold card for each leaderboard dethroning, and a highlights card. Everything in it is folded from `getSeries()` rows; games dress their card through the optional `daily` and `resultLabel` hooks.
 
 **Optional game hooks drive analytics** — `distributionMetrics`, `scoreLabel`, `periodMetric`, `detailFields`, `leaderboard*`, `statFields`, `puzzleLabel`. `periodMetric` is read by `/stats`, `/periods` and `/semester`'s "most improved"; declare it once as a module constant (see `src/games/wordle/index.js`). See `docs/adding-a-game.md` for the full shape.
 

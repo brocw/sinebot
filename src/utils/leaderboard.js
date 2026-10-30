@@ -23,9 +23,8 @@ export function leaderboardFields(lines, heading) {
 
 const PLACE_LABELS = ["👑", "🥈", "🥉"];
 
-/** Renders a placement as a medal for the top three, else an ordinal. */
-export function placeLabel(n) {
-  if (n <= 3) return PLACE_LABELS[n - 1];
+/** "1st", "2nd", "11th", "23rd". */
+export function ordinal(n) {
   const suffix =
     n % 10 === 1 && n % 100 !== 11
       ? "st"
@@ -35,6 +34,11 @@ export function placeLabel(n) {
           ? "rd"
           : "th";
   return `${n}${suffix}`;
+}
+
+/** Renders a placement as a medal for the top three, else an ordinal. */
+export function placeLabel(n) {
+  return n <= 3 ? PLACE_LABELS[n - 1] : ordinal(n);
 }
 
 /**

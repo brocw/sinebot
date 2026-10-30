@@ -1,5 +1,5 @@
 import { GAMES } from "../games/registry.js";
-import { selfReportSummaryLines } from "../games/puzzleNumber.js";
+import { buildDailySummary, renderDailySummary } from "../summary/index.js";
 import { trackedChannel } from "../data/guildConfigStore.js";
 import { dmEnabled, setDmEnabledAll } from "../data/userPrefsStore.js";
 
@@ -57,25 +57,48 @@ async function handleSelfReport(message, game, parsed) {
 }
 
 /**
- * Posts one combined summary when an aggregate game fires: that game's own
- * announcement, followed by yesterday's crown for every self-report game the
- * guild tracks. Sections with nothing to report drop out.
+ * Posts one combined summary when an aggregate game fires: yesterday in that
+ * game, followed by yesterday in every self-report game the guild tracks, and
+ * whatever the day did to the leaderboards. Games nobody played drop out.
  */
 async function postDailySummary(message, announcingGame, parsed) {
-  const lines = await announcingGame.announce({
+  const games = [
+    announcingGame,
+    ...GAMES.filter(
+      (g) =>
+        g.kind === "self-report" &&
+        g.puzzleNumberFor &&
+        trackedChannel(message.guildId, g.id),
+    ),
+  ];
+
+  const summary = await buildDailySummary({
     guildId: message.guildId,
-    message,
-    parsed,
+    date: message.createdAt,
+    games,
+    parsed: new Map([[announcingGame.id, parsed]]),
   });
+  if (!summary) return;
 
-  for (const game of GAMES) {
-    if (game.kind !== "self-report") continue;
-    if (!trackedChannel(message.guildId, game.id)) continue;
-    lines.push(...selfReportSummaryLines(game, message.guildId, message.createdAt));
+  const avatars = await dethronedAvatars(message.client, summary);
+  await message.channel.send(renderDailySummary(summary, { avatars }));
+}
+
+// Each dethroning card carries the new leader's avatar. Decoration only: a
+// failed lookup leaves that card without one.
+async function dethronedAvatars(client, summary) {
+  const avatars = new Map();
+  for (const { who } of summary.callouts.dethrones) {
+    const [entry] = who;
+    if (entry.playerType !== "id" || avatars.has(entry.playerKey)) continue;
+    try {
+      const user = await client.users.fetch(entry.playerKey);
+      avatars.set(entry.playerKey, user.displayAvatarURL({ extension: "png", size: 128 }));
+    } catch (err) {
+      console.warn(`[summary] No avatar for ${entry.playerKey}: ${err.message}`);
+    }
   }
-
-  if (lines.length === 0) return;
-  await message.channel.send(lines.join("\n"));
+  return avatars;
 }
 
 // Lets a player mute or unmute result DMs by replying in the DM itself,

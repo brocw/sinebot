@@ -7,6 +7,7 @@ import { join } from "node:path";
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "sinebot-wordle-"));
 
 const { default: wordle } = await import("../src/games/wordle/index.js");
+const { buildDailySummary, renderDailySummary } = await import("../src/summary/index.js");
 
 // The daily post's word and commonality lookups are decoration; every failure
 // path in daily.js returns null. Cutting the network off keeps these tests
@@ -15,42 +16,79 @@ globalThis.fetch = async () => {
   throw new Error("offline");
 };
 
-/** A Wordle-bot results post, as parseWordleResult expects to find it. */
-function wordlePost(isoDate) {
-  const content = ["Someone is on a 5 day streak!", "👑 3/6: <@111>", "4/6: <@222>"].join("\n");
+let seq = 0;
+
+/** Records a Wordle-bot results post in a fresh guild, as the live handler does. */
+function wordlePost(isoDate, lines = ["👑 3/6: <@111>", "4/6: <@222>"]) {
+  const guildId = `guild-${++seq}`;
+  const content = ["Your group is on an 89 day streak!", ...lines].join("\n");
   const message = { content, createdAt: new Date(isoDate) };
-  return { message, parsed: wordle.parse(message) };
+  const parsed = wordle.parse(message);
+  wordle.store.record(guildId, parsed, `msg-${seq}`, message.createdAt.getTime());
+  return { guildId, date: message.createdAt, parsed };
 }
+
+function summaryOf({ guildId, date, parsed }) {
+  return buildDailySummary({
+    guildId,
+    date,
+    games: [wordle],
+    parsed: new Map([["wordle", parsed]]),
+  });
+}
+
+/** Every piece of text in a rendered message, joined. */
+const textOf = (message) =>
+  JSON.stringify(message.components.map((c) => c.toJSON()));
 
 test("puzzle numbering matches NYT's days_since_launch", () => {
   // Both checked against https://www.nytimes.com/svc/wordle/v2/<date>.json,
-  // which is the same endpoint the announcement's word lookup uses.
+  // which is the same endpoint the summary's word lookup uses.
   assert.equal(wordle.puzzleNumberFor(new Date("2026-08-31T12:00:00Z")), 1899);
   assert.equal(wordle.puzzleNumberFor(new Date("2026-09-01T12:00:00Z")), 1900);
 });
 
-test("the announcement is headed with the puzzle it reports", async () => {
+test("the section is headed with the puzzle it reports", async () => {
   // The bot posts the morning after, so a post made on the 1st reports #1899.
-  const lines = await wordle.announce(wordlePost("2026-09-01T12:00:00Z"));
+  const { days } = await summaryOf(wordlePost("2026-09-01T12:00:00Z"));
 
-  assert.equal(lines[0], "🟩🟨⬛ Wordle #1899");
-  assert.match(lines.at(-1), /takes the Wordle crown with \*\*3\/6\*\*/);
+  assert.equal(days[0].title, "🟩🟨⬛ Wordle #1899");
+  assert.deepEqual(
+    days[0].podium.map((p) => [p.place, p.result, p.names]),
+    [
+      [1, "3/6", ["<@111>"]],
+      [2, "4/6", ["<@222>"]],
+    ],
+  );
 });
 
-test("the header survives the word lookup being unavailable", async () => {
-  const lines = await wordle.announce(wordlePost("2026-09-01T12:00:00Z"));
+test("the group streak and day average come from the upstream post", async () => {
+  const { days } = await summaryOf(wordlePost("2026-09-01T12:00:00Z"));
+
+  assert.deepEqual(days[0].stats, ["2 played", "avg 3.50", "🔥 89-day group streak"]);
+});
+
+test("the section survives the word lookup being unavailable", async () => {
+  const { days } = await summaryOf(wordlePost("2026-09-01T12:00:00Z"));
 
   // Numbering is local, so only the word line drops out when NYT is unreachable.
-  assert.equal(lines.length, 2);
-  assert.ok(!lines.some((l) => l.includes("Yesterday's word")));
+  assert.deepEqual(days[0].intro, []);
 });
 
-test("no crown recorded means no announcement at all", async () => {
-  const message = {
-    content: ["Someone is on a 5 day streak!", "4/6: <@222>"].join("\n"),
-    createdAt: new Date("2026-09-01T12:00:00Z"),
-  };
-  const lines = await wordle.announce({ message, parsed: wordle.parse(message) });
+test("a day nobody solved still reports, without a podium", async () => {
+  const post = wordlePost("2026-09-01T12:00:00Z", ["X/6: <@111> <@222>"]);
+  const summary = await summaryOf(post);
 
-  assert.deepEqual(lines, []);
+  assert.deepEqual(summary.days[0].podium, []);
+  assert.deepEqual(summary.days[0].stats.slice(0, 2), ["2 played", "2 ❌"]);
+  assert.match(textOf(renderDailySummary(summary)), /Nobody solved it\./);
+});
+
+test("a guild with nothing recorded posts nothing", async () => {
+  const summary = await buildDailySummary({
+    guildId: "guild-empty",
+    date: new Date("2026-09-01T12:00:00Z"),
+    games: [wordle],
+  });
+  assert.equal(summary, null);
 });

@@ -11,9 +11,10 @@ streaks, crowns, rebuilds, the statistical breakdowns), the aggregate store
 outage days, the unlinked listing), the statistics helpers
 in `src/utils/stats.js`, the semester calendar (both sides of every boundary,
 and that the day is read in Eastern time), the windowed standings fold, message
-routing through the registry, chart-label sanitising, and the Wordle daily
-announcement (including its puzzle numbering, pinned against NYT's own
-`days_since_launch`).
+routing through the registry, chart-label sanitising, and the daily summary —
+its podiums, leaderboard changes, streak endings, milestones, the Components V2
+layout and its text cap, and Wordle's section (including its puzzle numbering,
+pinned against NYT's own `days_since_launch`).
 
 One of those is load-bearing beyond what it looks like: an unwindowed semester
 board must render byte-for-byte identically to `/crowns`. That is what keeps the

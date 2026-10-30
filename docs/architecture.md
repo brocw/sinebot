@@ -22,7 +22,7 @@ sinebot/
     ├── events/                  # one file per Discord event
     ├── games/
     │   ├── registry.js          # discovers and validates game modules
-    │   ├── puzzleNumber.js      # daily-puzzle numbering + summary helpers
+    │   ├── puzzleNumber.js      # daily-puzzle numbering
     │   ├── wordle/              # aggregate game
     │   ├── connections/         # self-report game
     │   └── minute-cryptic/      # self-report game
@@ -33,6 +33,10 @@ sinebot/
     │   ├── aggregateStore.js    # shared store for bot-posted games
     │   ├── guildConfigStore.js  # per-guild channel routing
     │   └── userPrefsStore.js    # global per-user DM preferences
+    ├── summary/
+    │   ├── index.js             # builds the daily summary from each store's series
+    │   ├── daily.js             # podiums, board changes, streak ends, milestones
+    │   └── render.js            # the summary as a Components V2 message
     └── utils/
         ├── stats.js             # mean/median/stdev, regression, histograms
         ├── statFields.js        # best/worst embed fields

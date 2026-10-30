@@ -56,9 +56,24 @@ export default {
 ```
 
 Declaring `puzzleNumberFor` on a **self-report** game also enrols it in the daily
-summary — its header and crown line are appended automatically when the
-aggregate game posts. An aggregate game may declare it too, but only to name its
-own puzzle; nothing is appended for it.
+summary — when the aggregate game posts, the game gets a card of its own with
+yesterday's podium and turnout, and its leaderboards are checked for
+dethronings, climbs, crown milestones and broken streaks. An aggregate game may
+declare it too, but only to name its own puzzle in its own card.
+
+Two optional hooks dress a game's card:
+
+```js
+  // Lines above the podium (`intro`) and short " · "-joined fragments in the
+  // footer (`stats`), from that day's getSeries() rows. May be async.
+  daily: ({ rows, parsed, date, puzzle }) => ({
+    intro: [`🧩 ${rows[0].details.clue}`],
+    stats: [`avg ${mean(rows.map((r) => r.score)).toFixed(1)} hints`],
+  }),
+
+  // How one result reads on the podium. Defaults to "<points> pts".
+  resultLabel: (row) => `${row.score}/6`,
+```
 
 The store keys dedup and streaks on a number that advances one per calendar day,
 so a game whose share carries only a date has to mint one. Anchor the numbering
@@ -105,7 +120,8 @@ a module constant and hand it to both, as `src/games/wordle/index.js` does.
 
 The other shape is **aggregate**: one upstream bot posts everyone's scores in a
 single message (this is how Wordle works). Those use `createAggregateStore` and
-supply an `announce()` method instead of `formatDm`. See `src/games/wordle/`.
+have no `formatDm`, since no player posted anything to reply to; their upstream
+message is what triggers the daily summary. See `src/games/wordle/`.
 
 ## Adding a command or event
 
