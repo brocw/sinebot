@@ -1,10 +1,12 @@
 import { SlashCommandBuilder, MessageFlags } from "discord.js";
 import { linkAlias } from "../data/aggregateStore.js";
 import { requireAdmin } from "../utils/permissions.js";
+import { GUILD_ONLY } from "../utils/guildContext.js";
 
 export default {
   data: new SlashCommandBuilder()
     .setName("link-user")
+    .setContexts(...GUILD_ONLY)
     .setDescription(
       "Map an unresolved Wordle name to a Discord user and merge their crowns",
     )

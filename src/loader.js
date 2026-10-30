@@ -33,7 +33,7 @@ export async function loadCommands(client) {
 
   for (const file of files) {
     const command = await import(pathToFileURL(join(commandsPath, file)).href);
-    const { data, execute } = command.default;
-    client.commands.set(data.name, { data, execute });
+    const { data, execute, autocomplete } = command.default;
+    client.commands.set(data.name, { data, execute, autocomplete });
   }
 }

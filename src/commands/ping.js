@@ -1,10 +1,12 @@
 import { SlashCommandBuilder } from "discord.js";
 import { versionString } from "../version.js";
+import { GUILD_AND_DM } from "../utils/guildContext.js";
 
 export default {
   data: new SlashCommandBuilder()
     .setName("ping")
-    .setDescription("Replies with Pong, current latency and the running version"),
+    .setDescription("Replies with Pong, current latency and the running version")
+    .setContexts(...GUILD_AND_DM),
 
   async execute(interaction) {
     const sent = await interaction.reply({

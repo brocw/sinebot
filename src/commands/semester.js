@@ -16,6 +16,7 @@ import {
   improvement,
   nameOf,
 } from "../utils/standings.js";
+import { GUILD_AND_DM, serverOption, resolveGuild } from "../utils/guildContext.js";
 
 // The academic term as a scoreboard. `/crowns` credits everyone who ever
 // played, which on a server with an intake every August means the board is
@@ -42,6 +43,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName("semester")
     .setDescription("Champions and standings for an academic semester")
+    .setContexts(...GUILD_AND_DM)
     .addStringOption((opt) =>
       opt
         .setName("which")
@@ -56,10 +58,14 @@ export default {
         .setName("game")
         .setDescription("One game in full (default: every game's champion)")
         .addChoices(...GAME_CHOICES),
-    ),
+    )
+    .addStringOption(serverOption),
 
   async execute(interaction) {
     await interaction.deferReply();
+
+    const context = await resolveGuild(interaction);
+    if (!context) return;
 
     const semester =
       interaction.options.getString("which") === "previous"
@@ -68,8 +74,8 @@ export default {
 
     const gameId = interaction.options.getString("game");
     const embed = gameId
-      ? gameEmbed(getGame(gameId), interaction.guildId, semester)
-      : championsEmbed(interaction.guildId, semester);
+      ? gameEmbed(getGame(gameId), context.guildId, semester)
+      : championsEmbed(context.guildId, semester);
 
     await interaction.editReply({ embeds: [embed] });
   },

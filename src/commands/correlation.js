@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 import { gameOption, gameFrom } from "../games/registry.js";
 import { renderChart, chrome } from "../charts/render.js";
+import { GUILD_AND_DM, serverOption, resolveGuild } from "../utils/guildContext.js";
 import { seriesColor, scale, ACCENT } from "../charts/theme.js";
 import { mean, pearson, linearRegression } from "../utils/stats.js";
 
@@ -40,13 +41,18 @@ export default {
   data: new SlashCommandBuilder()
     .setName("correlation")
     .setDescription("Does an easier day mean more people share the crown?")
-    .addStringOption(gameOption),
+    .setContexts(...GUILD_AND_DM)
+    .addStringOption(gameOption)
+    .addStringOption(serverOption),
 
   async execute(interaction) {
     await interaction.deferReply();
 
+    const context = await resolveGuild(interaction);
+    if (!context) return;
+
     const game = gameFrom(interaction);
-    const days = byDay(game.store.getSeries(interaction.guildId));
+    const days = byDay(game.store.getSeries(context.guildId));
 
     // A day with no crown recorded is a gap in the data rather than a genuine
     // "nobody tied", so it is dropped and the count reported.

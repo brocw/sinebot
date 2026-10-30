@@ -26,6 +26,11 @@ modules.
 - **`/config`** — everything configurable: which channel each game is tracked in
   (admin only), and your own DM preferences (anyone)
 - **`/ping`** — bot and API latency
+- **Works in DMs** — every read-only command (`/graph`, `/stats`, `/crowns`,
+  `/distribution`, `/correlation`, `/periods`, `/semester`, `/ping`) can be run
+  in a DM with the bot, so charts don't land in a server channel; a `server`
+  option picks which server's results when you share more than one. In a server,
+  `/graph private:True` shows the chart to you alone
 
 ## Setup
 

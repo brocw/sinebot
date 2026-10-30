@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, AttachmentBuilder } from "discord.js";
+import { SlashCommandBuilder, AttachmentBuilder, MessageFlags } from "discord.js";
 import { gameOption, gameFrom } from "../games/registry.js";
 import { renderChart, chrome } from "../charts/render.js";
 import { seriesColor, scale } from "../charts/theme.js";
@@ -10,6 +10,7 @@ import {
 } from "../charts/avatarPlugin.js";
 import { trendPanel } from "../charts/trendPanel.js";
 import { linearRegression } from "../utils/stats.js";
+import { GUILD_AND_DM, serverOption, resolveGuild } from "../utils/guildContext.js";
 
 /**
  * Available chart metrics.
@@ -121,6 +122,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName("graph")
     .setDescription("Chart running totals of game performance over time")
+    .setContexts(...GUILD_AND_DM)
     .addStringOption((opt) =>
       opt
         .setName("metric")
@@ -170,10 +172,21 @@ export default {
         .setName("avatars")
         .setDescription("Show each player's profile picture past their last point (default: on)"),
     )
-    .addStringOption(gameOption),
+    .addBooleanOption((opt) =>
+      opt
+        .setName("private")
+        .setDescription("Show the chart only to you, not the channel (default: off)"),
+    )
+    .addStringOption(gameOption)
+    .addStringOption(serverOption),
 
   async execute(interaction) {
-    await interaction.deferReply();
+    // Visibility is fixed by the deferral, so it has to be settled first.
+    const isPrivate = interaction.options.getBoolean("private") ?? false;
+    await interaction.deferReply(isPrivate ? { flags: MessageFlags.Ephemeral } : {});
+
+    const context = await resolveGuild(interaction);
+    if (!context) return;
 
     const game = gameFrom(interaction);
     const metricId = interaction.options.getString("metric") ?? "crowns";
@@ -208,7 +221,7 @@ export default {
 
     const buckets = buildBuckets(granularity, count);
     const index = new Map(buckets.map((b, i) => [b.key, i]));
-    const series = game.store.getSeries(interaction.guildId);
+    const series = game.store.getSeries(context.guildId);
 
     const players = new Map();
     for (const row of series) {
@@ -260,7 +273,7 @@ export default {
     const datasets = [];
     for (const [i, p] of plotted.entries()) {
       const color = seriesColor(i);
-      const { label, avatarUrl } = await resolveMember(p.row, interaction.guild);
+      const { label, avatarUrl } = await resolveMember(p.row, context.guild);
 
       datasets.push({
         label,
@@ -302,6 +315,9 @@ export default {
     const periodNoun = granularity === "week" ? "week" : "month";
 
     const notes = [];
+    // From a DM the chart travels without a channel around it, so it names its
+    // server itself.
+    if (!interaction.guildId) notes.push(chartLabel(context.guild.name, "Server"));
     if (trend) {
       notes.push(
         `Trend: least-squares fit; slope in ${metric.label.toLowerCase()} per ${periodNoun}`,

@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { listUnlinked } from "../data/aggregateStore.js";
 import { requireAdmin } from "../utils/permissions.js";
 import { GAMES } from "../games/registry.js";
+import { GUILD_ONLY } from "../utils/guildContext.js";
 
 // Discord rejects an embed field value over 1024 characters, and caps a whole
 // embed at 6000. A server that has never run /link-user can easily exceed
@@ -77,6 +78,7 @@ function fields(entries) {
 export default {
   data: new SlashCommandBuilder()
     .setName("unlinked")
+    .setContexts(...GUILD_ONLY)
     .setDescription(
       "List players the upstream bot never resolved to a Discord account",
     ),
